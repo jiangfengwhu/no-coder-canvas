@@ -1,0 +1,103 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+:root {
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --radius: .5rem;
+  --background: oklch(.988 0 0);
+  --foreground: oklch(.205 0 0);
+  --card: oklch(.998 0 0);
+  --card-foreground: oklch(.205 0 0);
+  --popover: oklch(.998 0 0);
+  --popover-foreground: oklch(.205 0 0);
+  --primary: oklch(.245 0 0);
+  --primary-foreground: oklch(.985 0 0);
+  --secondary: oklch(.955 0 0);
+  --secondary-foreground: oklch(.245 0 0);
+  --muted: oklch(.955 0 0);
+  --muted-foreground: oklch(.49 0 0);
+  --accent: oklch(.945 0 0);
+  --accent-foreground: oklch(.205 0 0);
+  --destructive: oklch(.55 .2 25);
+  --border: oklch(.9 0 0);
+  --input: oklch(.875 0 0);
+  --ring: oklch(.55 0 0);
+}
+.dark {
+  --background: oklch(.17 0 0);
+  --foreground: oklch(.94 0 0);
+  --card: oklch(.195 0 0);
+  --card-foreground: oklch(.94 0 0);
+  --popover: oklch(.205 0 0);
+  --popover-foreground: oklch(.94 0 0);
+  --primary: oklch(.92 0 0);
+  --primary-foreground: oklch(.205 0 0);
+  --secondary: oklch(.26 0 0);
+  --secondary-foreground: oklch(.94 0 0);
+  --muted: oklch(.255 0 0);
+  --muted-foreground: oklch(.72 0 0);
+  --accent: oklch(.28 0 0);
+  --accent-foreground: oklch(.94 0 0);
+  --destructive: oklch(.7 .17 25);
+  --border: oklch(.32 0 0);
+  --input: oklch(.37 0 0);
+  --ring: oklch(.65 0 0);
+}
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply m-0 bg-background text-foreground; }
+  button:not(:disabled), summary { cursor: pointer; }
+  button, input, textarea { font: inherit; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  textarea { resize: vertical; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* The workspace fills the viewport; the control shell sits above it. */
+.canvas { position: fixed; inset: 0; overflow: hidden; background: var(--background); }
+.canvas-surface { position: absolute; inset: 0; touch-action: none; cursor: grab; background-image: radial-gradient(circle, var(--border) 1px, transparent 1.2px); }
+.canvas-surface.is-dragging { cursor: grabbing; }
+.canvas-world { position: absolute; inset: 0; transform-origin: 0 0; pointer-events: none; }
+.canvas-controls { position: fixed; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.canvas-scale { min-width: 44px; text-align: center; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.canvas-hint { position: fixed; top: 24px; left: 26px; margin: 0; color: var(--muted-foreground); font-size: 12px; pointer-events: none; }
+.orb { position: fixed; z-index: 10; left: 24px; bottom: 24px; display: flex; align-items: center; gap: 11px; min-width: 190px; padding: 7px 12px 7px 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--foreground); text-align: left; box-shadow: 0 3px 14px rgb(0 0 0 / .06); }
+.orb:hover { background: var(--accent); }
+.orb:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.orb-mark { display: grid; width: 40px; height: 40px; flex: none; place-items: center; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); }
+.orb-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.orb-copy strong { font-size: 13px; font-weight: 600; }
+.orb-copy > span { display: flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 11px; }
+.orb-dot { width: 6px; height: 6px; border-radius: 50%; background: #668675; }
+.orb-dot.warning { background: #bc8750; }
+.orb-arrow { color: var(--muted-foreground); }
+@media (max-width: 480px) { .canvas-hint { top: 16px; left: 16px; } .orb { left: 12px; bottom: 12px; min-width: 0; } .orb-arrow { display: none; } .canvas-controls { right: 12px; bottom: 12px; } }
