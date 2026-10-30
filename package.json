@@ -22,6 +22,7 @@
     "lucide-react": "^0.468.0",
     "radix-ui": "^1.8.1",
     "react": "^19.2.0",
+    "react-cursor-cat": "^1.0.2",
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",

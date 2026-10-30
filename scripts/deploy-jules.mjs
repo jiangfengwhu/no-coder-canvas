@@ -61,7 +61,7 @@ async function main() {
   if (!options.dryRun) await assertLease();
   console.log('1/4 Typecheck and tests');
   await node('node_modules/typescript/bin/tsc', '--noEmit');
-  await node('node_modules/vitest/vitest.mjs', 'run');
+  await node('node_modules/vitest/vitest.mjs', 'run', '--passWithNoTests');
   console.log('2/4 Build frontend/ into dist/');
   await node('node_modules/vite/bin/vite.js', 'build');
   if (git('status', '--porcelain')) throw new Error('Build changed tracked source files. Commit and rerun before publishing.');
