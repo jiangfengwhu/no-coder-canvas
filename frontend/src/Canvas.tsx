@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, LocateFixed } from 'lucide-react';
+import Oneko from 'react-cursor-cat';
 
 type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
@@ -50,6 +51,10 @@ export function Canvas() {
   function end(event: PointerEvent<HTMLDivElement>) {
     if (drag.current?.id === event.pointerId) { drag.current = null; setDragging(false); }
   }
+
+  // Workaround for CJS/ESM interop issue with react-cursor-cat in Vite
+  const OnekoComponent = typeof Oneko === 'function' ? Oneko : (Oneko as any).default;
+
   return <main className="canvas" aria-label="无限画板">
     <div ref={surface} className={`canvas-surface ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
       <div className="canvas-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} aria-hidden="true" />
@@ -61,6 +66,6 @@ export function Canvas() {
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => setView(initial)}><LocateFixed /></Button>
     </div>
     <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放</p>
+    {OnekoComponent && <OnekoComponent />}
   </main>;
 }
-
