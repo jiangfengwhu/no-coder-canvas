@@ -101,3 +101,47 @@
 .orb-dot.warning { background: #bc8750; }
 .orb-arrow { color: var(--muted-foreground); }
 @media (max-width: 480px) { .canvas-hint { top: 16px; left: 16px; } .orb { left: 12px; bottom: 12px; min-width: 0; } .orb-arrow { display: none; } .canvas-controls { right: 12px; bottom: 12px; } }
+
+@keyframes blindFlash {
+  0% { color: red; text-shadow: 0 0 20px yellow; transform: scale(1) skewX(0deg); }
+  10% { color: blue; text-shadow: 0 0 40px magenta; transform: scale(1.2) skewX(-10deg); }
+  20% { color: lime; text-shadow: 0 0 30px cyan; transform: scale(0.8) skewX(10deg); }
+  30% { color: yellow; text-shadow: 0 0 50px red; transform: scale(1.5) skewX(-20deg); }
+  40% { color: magenta; text-shadow: 0 0 20px lime; transform: scale(1.1) skewX(20deg); }
+  50% { color: cyan; text-shadow: 0 0 60px blue; transform: scale(0.9) skewX(-5deg); }
+  60% { color: white; text-shadow: 0 0 80px black; transform: scale(1.3) skewX(5deg); }
+  70% { color: red; text-shadow: 0 0 20px yellow; transform: scale(1) skewX(15deg); }
+  80% { color: blue; text-shadow: 0 0 40px magenta; transform: scale(1.4) skewX(-15deg); }
+  90% { color: lime; text-shadow: 0 0 30px cyan; transform: scale(0.7) skewX(0deg); }
+  100% { color: yellow; text-shadow: 0 0 50px red; transform: scale(1.2) skewX(10deg); }
+}
+
+@keyframes marqueeScroll {
+  0% { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+
+.marquee-container {
+  position: fixed;
+  top: 30%;
+  left: 0;
+  width: 100vw;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+}
+
+.marquee-scroller {
+  display: inline-block;
+  animation: marqueeScroll 4s linear infinite;
+  will-change: transform;
+}
+
+.marquee-text {
+  display: inline-block;
+  font-size: 10rem;
+  font-weight: 900;
+  animation: blindFlash 0.15s infinite;
+  will-change: transform, color, text-shadow;
+}
