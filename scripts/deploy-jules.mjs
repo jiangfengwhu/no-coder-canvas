@@ -8,7 +8,7 @@ export function deploymentOptions(env, args = []) {
   const localAuth = args.includes('--local-auth');
   if (args.some(arg => !['--dry-run', '--local-auth'].includes(arg))) throw new Error('Supported options: --dry-run, --local-auth');
   if (!dryRun && !localAuth && !env.CLOUDFLARE_API_TOKEN && !(env.NC_DEPLOY_TOKEN && env.NC_JOB_ID)) throw new Error('Missing task authorization for the Worker credential broker (or CLOUDFLARE_API_TOKEN for manual use).');
-  const appUrl = new URL(env.APP_URL || 'https://nocoder-canvas.809740942.workers.dev');
+  const appUrl = new URL(env.APP_URL || 'https://nocoder-canvas.297782.xyz');
   if (appUrl.protocol !== 'https:' || appUrl.username || appUrl.password || appUrl.search || appUrl.hash || appUrl.pathname !== '/') {
     throw new Error('APP_URL must be the HTTPS origin of the production Worker.');
   }
@@ -90,4 +90,5 @@ async function main() {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(error => { console.error(error.message); process.exitCode = 1; });
 }
+
 
