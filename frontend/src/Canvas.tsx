@@ -101,10 +101,6 @@ export function Canvas() {
     <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
-    <div className="marquee-container" aria-hidden="true">
-      <div className="marquee-scroller">
-        <span className="marquee-text">哈基米到此一游</span>
-      </div>
-    </div>
+
   </main>;
 }
