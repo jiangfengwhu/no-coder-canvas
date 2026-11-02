@@ -493,6 +493,60 @@
   100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.4; }
 }
 
+/* Laser Tool */
+.laser-beam {
+  stroke: var(--pink-500, #ec4899);
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 10px #ec4899);
+  stroke-dasharray: var(--len);
+  stroke-dashoffset: var(--len);
+  animation: fire-laser 0.8s ease-out forwards;
+}
+
+.laser-beam-core {
+  stroke: white;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: var(--len);
+  stroke-dashoffset: var(--len);
+  animation: fire-laser 0.8s ease-out forwards;
+}
+
+@keyframes fire-laser {
+  0% { stroke-dashoffset: var(--len); opacity: 1; }
+  20% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: calc(var(--len) * -1); opacity: 0; }
+}
+
+.laser-aiming-line {
+  stroke: var(--pink-500, #ec4899);
+  stroke-width: 4;
+  stroke-dasharray: 10 10;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+
+.laser-spark {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: spark-pop 0.8s ease-out forwards;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pink-500, #ec4899);
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+@keyframes spark-pop {
+  0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 1; }
+  50% { transform: translate(-50%, -50%) scale(1.5) rotate(180deg); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(0) rotate(360deg); opacity: 0; }
+}
+
 /* Accessible Visual Feedback for Sounds */
 .canvas-visual-feedback {
   position: absolute;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -88,7 +88,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
@@ -103,12 +103,116 @@ export function Canvas() {
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
 
   const [activeTornadoes, setActiveTornadoes] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [activeLasers, setActiveLasers] = useState<{ id: string; paths: {x1: number, y1: number, x2: number, y2: number}[]; sparks: {x: number, y: number}[] }[]>([]);
+  const [laserAiming, setLaserAiming] = useState<{ startX: number, startY: number, currentX: number, currentY: number } | null>(null);
 
   const [shootSequence, setShootSequence] = useState(0);
   const [shootVector, setShootVector] = useState({ x: 0, y: 0 });
 
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
   const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
+
+  const calculateLaserPath = (startX: number, startY: number, dirX: number, dirY: number) => {
+    let px = startX;
+    let py = startY;
+    let dx = dirX;
+    let dy = dirY;
+    const paths: {x1: number, y1: number, x2: number, y2: number}[] = [];
+    const sparks: {x: number, y: number}[] = [];
+    const maxBounces = 20;
+    const rayLength = 8000;
+
+    for (let bounce = 0; bounce < maxBounces; bounce++) {
+      let closestT = 1;
+      let hitNormalX = 0;
+      let hitNormalY = 0;
+      let hitType = 'none';
+      let hitX = px + dx * rayLength;
+      let hitY = py + dy * rayLength;
+
+      // Check intersection with strokes (segments)
+      for (const stroke of strokes) {
+        for (let i = 0; i < stroke.points.length - 1; i++) {
+          const p1 = stroke.points[i];
+          const p2 = stroke.points[i+1];
+          const sx1 = p1.x; const sy1 = p1.y;
+          const sx2 = p2.x; const sy2 = p2.y;
+
+          const rdx = dx * rayLength; const rdy = dy * rayLength;
+          const sdx = sx2 - sx1; const sdy = sy2 - sy1;
+          const denom = -sdx * rdy + rdx * sdy;
+          if (denom === 0) continue;
+
+          const t = (-sdy * (px - sx1) + sdx * (py - sy1)) / denom;
+          const u = ( rdx * (py - sy1) - rdy * (px - sx1)) / denom;
+
+          if (t > 0.001 && t < closestT && u >= 0 && u <= 1) {
+            closestT = t;
+            hitX = px + t * rdx;
+            hitY = py + t * rdy;
+
+            // normal vector to the segment
+            let nx = -sdy; let ny = sdx;
+            const len = Math.hypot(nx, ny);
+            nx /= len; ny /= len;
+            // Ensure normal points against ray direction
+            if (nx * dx + ny * dy > 0) { nx = -nx; ny = -ny; }
+            hitNormalX = nx; hitNormalY = ny;
+            hitType = 'stroke';
+          }
+        }
+      }
+
+      // Check intersection with stamps (circles, radius approx 20)
+      const stampRadius = 24;
+      for (const stamp of stamps) {
+        const cx = stamp.x; const cy = stamp.y;
+        const fx = px - cx; const fy = py - cy;
+        const rdx = dx * rayLength; const rdy = dy * rayLength;
+        const a = rdx * rdx + rdy * rdy;
+        const b = 2 * (fx * rdx + fy * rdy);
+        const c = fx * fx + fy * fy - stampRadius * stampRadius;
+        let discriminant = b * b - 4 * a * c;
+
+        if (discriminant >= 0) {
+          discriminant = Math.sqrt(discriminant);
+          const t1 = (-b - discriminant) / (2 * a);
+          const t2 = (-b + discriminant) / (2 * a);
+
+          let t = -1;
+          if (t1 > 0.001) t = t1;
+          else if (t2 > 0.001) t = t2;
+
+          if (t > 0.001 && t < closestT) {
+            closestT = t;
+            hitX = px + t * rdx;
+            hitY = py + t * rdy;
+
+            let nx = hitX - cx; let ny = hitY - cy;
+            const len = Math.hypot(nx, ny);
+            nx /= len; ny /= len;
+            hitNormalX = nx; hitNormalY = ny;
+            hitType = 'stamp';
+          }
+        }
+      }
+
+      paths.push({ x1: px, y1: py, x2: hitX, y2: hitY });
+
+      if (hitType !== 'none') {
+        sparks.push({ x: hitX, y: hitY });
+        // Reflection: R = D - 2(D.N)N
+        const dot = dx * hitNormalX + dy * hitNormalY;
+        dx = dx - 2 * dot * hitNormalX;
+        dy = dy - 2 * dot * hitNormalY;
+        px = hitX;
+        py = hitY;
+      } else {
+        break; // No hit, ray goes off to infinity (rayLength)
+      }
+    }
+    return { paths, sparks };
+  };
 
   // Emoji Alchemy logic
   useEffect(() => {
@@ -289,6 +393,7 @@ export function Canvas() {
       if (key === 'k') { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }
       if (key === 't') { setTool('tornado'); showToast('已切换至: 龙卷风'); }
       if (key === 'd') { setTool('dig'); showToast('已切换至: 挖掘'); }
+      if (key === 'l') { setTool('laser'); showToast('已切换至: 激光'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -404,6 +509,12 @@ export function Canvas() {
       playStampPop();
     } else if (tool === 'dig') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+    } else if (tool === 'laser') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      setLaserAiming({ startX: worldX, startY: worldY, currentX: worldX, currentY: worldY });
       setDragging(true);
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
@@ -733,6 +844,15 @@ export function Canvas() {
         drag.current.isDrag = true;
       }
       drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+    } else if (tool === 'laser') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      setLaserAiming(prev => prev ? { ...prev, currentX: worldX, currentY: worldY } : null);
     } else {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
@@ -952,6 +1072,29 @@ export function Canvas() {
     } else if (tool === 'confetti') {
       drag.current = null;
       setDragging(false);
+    } else if (tool === 'laser') {
+      if (laserAiming) {
+        const dx = laserAiming.startX - laserAiming.currentX;
+        const dy = laserAiming.startY - laserAiming.currentY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > 5) {
+          const dirX = dx / dist;
+          const dirY = dy / dist;
+          const { paths, sparks } = calculateLaserPath(laserAiming.startX, laserAiming.startY, dirX, dirY);
+
+          const laserId = Math.random().toString(36).slice(2);
+          setActiveLasers(prev => [...prev, { id: laserId, paths, sparks }]);
+          playMagicSparkle(); // Reuse sound
+
+          setTimeout(() => {
+            setActiveLasers(prev => prev.filter(l => l.id !== laserId));
+          }, 800);
+        }
+      }
+      drag.current = null;
+      setDragging(false);
+      setLaserAiming(null);
     }
   }
 
@@ -1174,7 +1317,30 @@ export function Canvas() {
               );
             })
           )}
+          {activeLasers.map(laser => (
+             <g key={laser.id}>
+                {laser.paths.map((path, i) => {
+                    const dist = Math.hypot(path.x2 - path.x1, path.y2 - path.y1);
+                    return (
+                        <g key={i}>
+                            <line className="laser-beam" x1={path.x1} y1={path.y1} x2={path.x2} y2={path.y2} style={{'--len': dist} as React.CSSProperties} />
+                            <line className="laser-beam-core" x1={path.x1} y1={path.y1} x2={path.x2} y2={path.y2} style={{'--len': dist} as React.CSSProperties} />
+                        </g>
+                    )
+                })}
+             </g>
+          ))}
+          {tool === 'laser' && laserAiming && (
+             <line className="laser-aiming-line" x1={laserAiming.startX} y1={laserAiming.startY} x2={laserAiming.startX - (laserAiming.currentX - laserAiming.startX)} y2={laserAiming.startY - (laserAiming.currentY - laserAiming.startY)} />
+          )}
         </svg>
+        {activeLasers.map(laser => (
+           laser.sparks.map((spark, i) => (
+               <div key={`${laser.id}-${i}`} className="laser-spark" style={{ left: spark.x, top: spark.y }} aria-hidden="true">
+                   <Zap size={24} />
+               </div>
+           ))
+        ))}
         {stamps.map(stamp => (
           <div key={stamp.id} className="stamp" style={{ left: stamp.x, top: stamp.y }}>
             <div className="stamp-inner">{stamp.emoji}</div>
@@ -1269,6 +1435,7 @@ export function Canvas() {
       <Button variant={tool === 'kaleidoscope' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="万花筒" onClick={() => { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }}><Snowflake /></Button>
       <Button variant={tool === 'tornado' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="龙卷风" onClick={() => { setTool('tornado'); showToast('已切换至: 龙卷风'); }}><Tornado /></Button>
       <Button variant={tool === 'dig' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="挖掘" onClick={() => { setTool('dig'); showToast('已切换至: 挖掘'); }}><Pickaxe /></Button>
+      <Button variant={tool === 'laser' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="激光" onClick={() => { setTool('laser'); showToast('已切换至: 激光'); }}><Zap /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
