@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2 } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -45,11 +45,13 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
   const [ballActive, setBallActive] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanPos, setScanPos] = useState({ x: 0, y: 0 });
   const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; isDrag: boolean } | null>(null);
   const surface = useRef<HTMLDivElement>(null);
   function zoom(factor: number, x: number, y: number) {
@@ -82,6 +84,7 @@ export function Canvas() {
       if (event.key.toLowerCase() === 'v') setTool('pan');
       if (event.key.toLowerCase() === 'p' || event.key.toLowerCase() === 'b') setTool('pen');
       if (event.key.toLowerCase() === 'm') setTool('magic');
+      if (event.key.toLowerCase() === 's') setTool('scan');
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
@@ -105,6 +108,11 @@ export function Canvas() {
     } else if (tool === 'magic') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
+      playMagicSparkle();
+    } else if (tool === 'scan') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setIsScanning(true);
+      setScanPos({ x: event.clientX, y: event.clientY });
       playMagicSparkle();
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
@@ -147,6 +155,14 @@ export function Canvas() {
         if (Math.random() < 0.1) playMagicSparkle();
         drag.current = { ...drag.current, x: event.clientX, y: event.clientY, isDrag: true };
       }
+    } else if (tool === 'scan') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      setScanPos({ x: event.clientX, y: event.clientY });
+
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
     } else {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
@@ -160,6 +176,8 @@ export function Canvas() {
     }
   }
   function end(event: PointerEvent<HTMLDivElement>) {
+    if (isScanning) setIsScanning(false);
+
     if (tool === 'pen') {
       if (currentStroke) {
         setStrokes(prev => [...prev, currentStroke]);
@@ -288,6 +306,9 @@ export function Canvas() {
 
   return <main className="canvas" aria-label="无限画板">
     <div className={`canvas-edge-glow ${isVeryClose ? 'very-close' : isClose ? 'close' : ''}`} aria-hidden="true" />
+    {isScanning && (
+      <div className="lens-overlay" style={{ '--mouse-x': scanPos.x, '--mouse-y': scanPos.y } as React.CSSProperties} aria-hidden="true" />
+    )}
     <div ref={surface} className={`canvas-surface ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
       {ripples.map(ripple => (
         <div key={ripple.id} className="interaction-ripple" style={{ left: ripple.x, top: ripple.y }} />
@@ -306,10 +327,17 @@ export function Canvas() {
             <div className="stamp-inner">{stamp.emoji}</div>
           </div>
         ))}
-        {treasures.map(t => t.discovered && (
+        {treasures.map(t => t.discovered ? (
           <div key={t.id} className="stamp treasure-stamp" style={{ left: t.x, top: t.y }}>
             <div className="stamp-inner">{t.emoji}</div>
             <div className="treasure-label">发现宝藏！</div>
+          </div>
+        ) : (
+          <div key={t.id} className="hidden-treasure" style={{
+            left: t.x, top: t.y,
+            opacity: isScanning && Math.hypot((t.x * view.scale + view.x) - scanPos.x, (t.y * view.scale + view.y) - scanPos.y) < 200 ? 1 : 0
+          }}>
+            {t.emoji}
           </div>
         ))}
         {particles.map(p => (
@@ -339,6 +367,7 @@ export function Canvas() {
       <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => setTool('pan')}><Hand /></Button>
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => setTool('pen')}><Pen /></Button>
       <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => setTool('magic')}><Wand2 /></Button>
+      <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => setTool('scan')}><Search /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); }}><Eraser /></Button>
       )}
@@ -347,7 +376,7 @@ export function Canvas() {
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => setView(initial)}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放 · 快捷键 V / P(B) / M</p>
+    <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放 · 快捷键 V / P(B) / M / S</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 
