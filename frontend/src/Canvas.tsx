@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -51,7 +51,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -152,6 +152,7 @@ export function Canvas() {
       if (key === 'r') { setTool('sonar'); showToast('已切换至: 声纳探测'); }
       if (key === 'a') { setTool('magnet'); showToast('已切换至: 磁铁'); }
       if (key === 'n') { setTool('ninja'); showToast('已切换至: 切水果'); }
+      if (key === 'c') { setTool('confetti'); showToast('已切换至: 派对纸屑'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -197,6 +198,7 @@ export function Canvas() {
 
     // Add visual ripple with dynamic color based on tool
     const rippleColorMap: Record<string, string> = {
+      'confetti': 'var(--pink-500, #ec4899)',
       'magic': 'var(--purple-500, #a855f7)',
       'stamp-brush': 'var(--green-500, #22c55e)',
       'scan': 'var(--cyan-500, #06b6d4)',
@@ -250,6 +252,10 @@ export function Canvas() {
     } else if (tool === 'ninja') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
+    } else if (tool === 'confetti') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+      playStampPop();
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -396,6 +402,36 @@ export function Canvas() {
         drag.current.isDrag = true;
       }
       drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+    } else if (tool === 'confetti') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      const dx = event.clientX - drag.current.x;
+      const dy = event.clientY - drag.current.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 15) {
+        drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+        const worldX = (event.clientX - view.x) / view.scale;
+        const worldY = (event.clientY - view.y) / view.scale;
+        const newParticles: Particle[] = [];
+        for (let i = 0; i < 5; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 20 + Math.random() * 80;
+          newParticles.push({
+            id: Math.random().toString(36).slice(2),
+            x: worldX,
+            y: worldY,
+            color: STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)],
+            tx: `${Math.cos(angle) * distance}px`,
+            ty: `${Math.sin(angle) * distance}px`,
+          });
+        }
+        setParticles(prev => [...prev.slice(-100), ...newParticles]);
+        if (Math.random() < 0.2) playStampPop();
+
+        setTimeout(() => {
+           setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+        }, 600);
+      }
     } else if (tool === 'magnet') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
@@ -635,6 +671,9 @@ export function Canvas() {
     } else if (tool === 'ninja') {
       drag.current = null;
       setDragging(false);
+    } else if (tool === 'confetti') {
+      drag.current = null;
+      setDragging(false);
     }
   }
 
@@ -805,6 +844,7 @@ export function Canvas() {
       <Button variant={tool === 'golf' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="高尔夫" onClick={() => { setTool('golf'); showToast('已切换至: 高尔夫'); }}><Flag /></Button>
       <Button variant={tool === 'magnet' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="磁铁" onClick={() => { setTool('magnet'); showToast('已切换至: 磁铁'); }}><Magnet /></Button>
       <Button variant={tool === 'ninja' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="切水果" onClick={() => { setTool('ninja'); showToast('已切换至: 切水果'); }}><Swords /></Button>
+      <Button variant={tool === 'confetti' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="派对纸屑" onClick={() => { setTool('confetti'); showToast('已切换至: 派对纸屑'); }}><PartyPopper /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
