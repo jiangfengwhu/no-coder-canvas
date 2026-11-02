@@ -90,7 +90,7 @@ export function MusicBox({ strokes, view, stamps }: { strokes: Stroke[], view: V
 
            // map to a fake speed for playBounce (500 to 2000)
            const fakeSpeed = 500 + normalizedY * 1500;
-           playBounce(fakeSpeed, stroke.color);
+           playBounce(fakeSpeed, stroke.color, currentX, hitY);
 
            newParticles.push({
              id: Math.random().toString(36).slice(2),
@@ -107,7 +107,7 @@ export function MusicBox({ strokes, view, stamps }: { strokes: Stroke[], view: V
 
          if (prevX <= stamp.x && currentX >= stamp.x) {
             lastHitRef.current[stamp.id] = now;
-            playStampPop();
+            playStampPop(stamp.x, stamp.y);
             newParticles.push({
               id: Math.random().toString(36).slice(2),
               x: stamp.x,

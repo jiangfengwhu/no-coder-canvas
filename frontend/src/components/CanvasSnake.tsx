@@ -178,7 +178,7 @@ export function CanvasSnake({ strokes, view, pointerWorldPosRef }: CanvasSnakePr
 
             if (crashed) {
                 setGameOver(true);
-                playStampPop();
+                playStampPop(head.x, head.y);
                 setHighScore(prev => Math.max(prev, scoreRef.current));
                 return newSnake;
             }
@@ -187,7 +187,7 @@ export function CanvasSnake({ strokes, view, pointerWorldPosRef }: CanvasSnakePr
             if (appleRef.current) {
                 const appleDist = Math.hypot(currentHead.x - appleRef.current.x, currentHead.y - appleRef.current.y);
                 if (appleDist < snakeRadius + 12) {
-                    playTreasureFound();
+                    playTreasureFound(head.x, head.y);
                     setScore(s => s + 10);
                     spawnApple();
                     // Add some new segments to the tail

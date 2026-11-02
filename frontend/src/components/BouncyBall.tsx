@@ -102,7 +102,7 @@ export function BouncyBall({ strokes, view, stamps, onStampHit }: { strokes: Str
 
               const speed = Math.hypot(velRef.current.x, velRef.current.y);
               if (speed > 50) {
-                playBounce(speed, stroke.color);
+                playBounce(speed, stroke.color, closestX, closestY);
               }
             }
 

@@ -41,7 +41,7 @@ type Stroke = { id: string; points: Point[]; color: string };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 type MagicParticle = { id: string; x: number; y: number; color: string; size: number };
 type VisualRing = { id: string; color: string };
-type SoundCaption = { id: string; color: string; text: string; x: number; y: number };
+type SoundCaption = { id: string; color: string; text: string; x: number; y: number; isOffscreen?: boolean; angle?: number; worldX?: number; worldY?: number };
 type SonarPing = { id: string; x: number; y: number };
 type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp' | 'fossil'; delay: number; emoji: string };
 
@@ -111,6 +111,12 @@ export function Canvas() {
 
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
   const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
+  const viewRef = useRef<View>(initial);
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
 
   const calculateLaserPath = (startX: number, startY: number, dirX: number, dirY: number) => {
     let px = startX;
@@ -295,16 +301,42 @@ export function Canvas() {
 
   useEffect(() => {
     const handleVisualSound = (e: Event) => {
-      const customEvent = e as CustomEvent<{ color: string; text?: string }>;
+      const customEvent = e as CustomEvent<{ color: string; text?: string; x?: number; y?: number }>;
       if (customEvent.detail && customEvent.detail.color) {
         const id = Math.random().toString(36).slice(2);
         setVisualRings(prev => [...prev, { id, color: customEvent.detail.color }]);
 
         if (customEvent.detail.text) {
-          // Randomize screen position slightly for a comic-book style feel
-          const x = 10 + Math.random() * 80; // 10% to 90% of screen width
-          const y = 10 + Math.random() * 80; // 10% to 90% of screen height
-          setSoundCaptions(prev => [...prev, { id, color: customEvent.detail.color, text: customEvent.detail.text!, x, y }]);
+          let screenX = 50;
+          let screenY = 50;
+          let isOffscreen = false;
+          let angle = 0;
+
+          if (customEvent.detail.x !== undefined && customEvent.detail.y !== undefined) {
+             const v = viewRef.current;
+             const absoluteX = customEvent.detail.x * v.scale + v.x;
+             const absoluteY = customEvent.detail.y * v.scale + v.y;
+
+             screenX = (absoluteX / window.innerWidth) * 100;
+             screenY = (absoluteY / window.innerHeight) * 100;
+
+             if (screenX < 5 || screenX > 95 || screenY < 5 || screenY > 95) {
+                 isOffscreen = true;
+                 const clampedX = Math.max(5, Math.min(95, screenX));
+                 const clampedY = Math.max(5, Math.min(95, screenY));
+
+                 const dx = screenX - 50;
+                 const dy = screenY - 50;
+                 angle = Math.atan2(dy, dx);
+
+                 screenX = clampedX;
+                 screenY = clampedY;
+             }
+          } else {
+            screenX = 10 + Math.random() * 80;
+            screenY = 10 + Math.random() * 80;
+          }
+          setSoundCaptions(prev => [...prev, { id, color: customEvent.detail.color, text: customEvent.detail.text!, x: screenX, y: screenY, isOffscreen, angle, worldX: customEvent.detail.x, worldY: customEvent.detail.y }]);
 
           setTimeout(() => {
             setSoundCaptions(prev => prev.filter(c => c.id !== id));
@@ -436,6 +468,7 @@ export function Canvas() {
   function down(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    (window as any).__lastPointerWorldPos = { x: (event.clientX - view.x) / view.scale, y: (event.clientY - view.y) / view.scale };
 
     // Add visual ripple with dynamic color based on tool
     const rippleColorMap: Record<string, string> = {
@@ -524,6 +557,7 @@ export function Canvas() {
   function move(event: PointerEvent<HTMLDivElement>) {
     const currentWorldX = (event.clientX - view.x) / view.scale;
     const currentWorldY = (event.clientY - view.y) / view.scale;
+    (window as any).__lastPointerWorldPos = { x: currentWorldX, y: currentWorldY };
 
     // Strumming logic (Harp Mode)
     if (lastHoverPos.current && tool !== 'pen' && strokes.length > 0) {
@@ -1255,13 +1289,26 @@ export function Canvas() {
         <div key={ring.id} className="visual-sound-wave" style={{ '--wave-color': ring.color } as React.CSSProperties} aria-hidden="true" />
       ))}
       {soundCaptions.map(caption => (
-        <div key={caption.id} className="sound-caption" style={{
-          left: `${caption.x}%`,
-          top: `${caption.y}%`,
-          color: caption.color,
-          textShadow: `0 2px 4px rgba(0,0,0,0.5), 0 0 10px ${caption.color}`
-        }} aria-hidden="true">
-          {caption.text}
+        <div key={caption.id}
+             className={`sound-caption ${caption.isOffscreen ? 'is-offscreen' : ''}`}
+             style={{
+               left: `${caption.x}%`,
+               top: `${caption.y}%`,
+               color: caption.color,
+               textShadow: `0 2px 4px rgba(0,0,0,0.5), 0 0 10px ${caption.color}`,
+               '--angle': caption.angle ? `${caption.angle}rad` : '0rad'
+             } as React.CSSProperties}
+             onClick={() => {
+                if (caption.worldX !== undefined && caption.worldY !== undefined) {
+                    playBounce(1500, caption.color, caption.worldX, caption.worldY);
+                }
+             }}
+             role="button"
+             tabIndex={0}
+             aria-label={`重播声音 ${caption.text}`}
+        >
+          {caption.isOffscreen && <span className="offscreen-arrow">➤</span>}
+          <span className="caption-text">{caption.text}</span>
         </div>
       ))}
     </div>

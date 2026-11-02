@@ -1,7 +1,16 @@
 
-function dispatchVisual(color: string, text?: string) {
+function dispatchVisual(color: string, text?: string, x?: number, y?: number) {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('app-sound-visual', { detail: { color, text } }));
+    let finalX = x;
+    let finalY = y;
+    if (finalX === undefined || finalY === undefined) {
+      const pos = (window as any).__lastPointerWorldPos;
+      if (pos) {
+        finalX = pos.x;
+        finalY = pos.y;
+      }
+    }
+    window.dispatchEvent(new CustomEvent('app-sound-visual', { detail: { color, text, x: finalX, y: finalY } }));
   }
 }
 
@@ -17,8 +26,8 @@ function getContext() {
   return audioCtx;
 }
 
-export function playStampPlace() {
-  dispatchVisual('#22c55e', 'Pop!');
+export function playStampPlace(x?: number, y?: number) {
+  dispatchVisual('#22c55e', 'Pop!', x, y);
   try {
     const ctx = getContext();
     const osc = ctx.createOscillator();
@@ -42,8 +51,8 @@ export function playStampPlace() {
   }
 }
 
-export function playStampPop() {
-  dispatchVisual('#ef4444', 'Poof!');
+export function playStampPop(x?: number, y?: number) {
+  dispatchVisual('#ef4444', 'Poof!', x, y);
   try {
     const ctx = getContext();
     const osc = ctx.createOscillator();
@@ -67,8 +76,8 @@ export function playStampPop() {
   }
 }
 
-export function playTreasureFound() {
-  dispatchVisual('#eab308', 'Ta-da! ✨');
+export function playTreasureFound(x?: number, y?: number) {
+  dispatchVisual('#eab308', 'Ta-da! ✨', x, y);
   try {
     const ctx = getContext();
     const t = ctx.currentTime;
@@ -102,8 +111,8 @@ export function playTreasureFound() {
   }
 }
 
-export function playMagicSparkle() {
-  dispatchVisual('#a855f7', 'Sparkle ✨');
+export function playMagicSparkle(x?: number, y?: number) {
+  dispatchVisual('#a855f7', 'Sparkle ✨', x, y);
   try {
     const ctx = getContext();
     const t = ctx.currentTime;
@@ -138,8 +147,8 @@ const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#
 // C pentatonic scale frequencies
 const PENTATONIC_SCALE = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
 
-export function playBounce(velocityMag: number, color?: string) {
-  dispatchVisual(color || '#3b82f6', 'Boing!');
+export function playBounce(velocityMag: number, color?: string, x?: number, y?: number) {
+  dispatchVisual(color || '#3b82f6', 'Boing!', x, y);
   try {
     const ctx = getContext();
     const osc = ctx.createOscillator();
