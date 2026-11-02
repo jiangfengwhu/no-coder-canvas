@@ -22,5 +22,3 @@ export default {
     return asset;
   },
 } satisfies ExportedHandler<Env>;
-
-

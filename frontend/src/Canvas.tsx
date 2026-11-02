@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, LocateFixed } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
+import { ParrotApp } from '@/components/ParrotApp';
 
 type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
@@ -67,6 +68,7 @@ export function Canvas() {
     </div>
     <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放</p>
     {OnekoComponent && <OnekoComponent />}
+    <ParrotApp />
     <div className="marquee-container" aria-hidden="true">
       <div className="marquee-scroller">
         <span className="marquee-text">哈基米到此一游</span>
