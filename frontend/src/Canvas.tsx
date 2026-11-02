@@ -5,7 +5,7 @@ import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
 import { MiniGolf } from '@/components/MiniGolf';
-import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle } from '@/lib/sound';
+import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle, playBounce } from '@/lib/sound';
 
 type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
@@ -57,6 +57,9 @@ export function Canvas() {
 
   const [shootSequence, setShootSequence] = useState(0);
   const [shootVector, setShootVector] = useState({ x: 0, y: 0 });
+
+  const lastHoverPos = useRef<{ x: number; y: number } | null>(null);
+  const lastStrumTime = useRef<Record<string, number>>({});
 
   function showToast(message: string) {
     const id = Math.random().toString(36).slice(2);
@@ -198,6 +201,70 @@ export function Canvas() {
     }
   }
   function move(event: PointerEvent<HTMLDivElement>) {
+    const currentWorldX = (event.clientX - view.x) / view.scale;
+    const currentWorldY = (event.clientY - view.y) / view.scale;
+
+    // Strumming logic (Harp Mode)
+    if (lastHoverPos.current && tool !== 'pen' && strokes.length > 0) {
+      const p0_x = lastHoverPos.current.x;
+      const p0_y = lastHoverPos.current.y;
+      const p1_x = currentWorldX;
+      const p1_y = currentWorldY;
+
+      const mouseDist = Math.hypot(p1_x - p0_x, p1_y - p0_y);
+
+      if (mouseDist > 0) {
+        for (const stroke of strokes) {
+          const now = Date.now();
+          if (lastStrumTime.current[stroke.id] && now - lastStrumTime.current[stroke.id] < 100) continue;
+
+          let intersected = false;
+          let intersectPt = null;
+
+          for (let i = 0; i < stroke.points.length - 1; i++) {
+            const p2 = stroke.points[i];
+            const p3 = stroke.points[i+1];
+
+            const s1_x = p1_x - p0_x; const s1_y = p1_y - p0_y;
+            const s2_x = p3.x - p2.x; const s2_y = p3.y - p2.y;
+
+            const denom = (-s2_x * s1_y + s1_x * s2_y);
+            if (denom === 0) continue;
+
+            const s = (-s1_y * (p0_x - p2.x) + s1_x * (p0_y - p2.y)) / denom;
+            const t = ( s2_x * (p0_y - p2.y) - s2_y * (p0_x - p2.x)) / denom;
+
+            if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+              intersected = true;
+              intersectPt = { x: p0_x + (t * s1_x), y: p0_y + (t * s1_y) };
+              break;
+            }
+          }
+
+          if (intersected && intersectPt) {
+            lastStrumTime.current[stroke.id] = now;
+            const speed = Math.min(mouseDist * view.scale * 10, 2000);
+
+            playBounce(speed, stroke.color);
+
+            const newParticle: MagicParticle = {
+              id: Math.random().toString(36).slice(2),
+              x: intersectPt.x,
+              y: intersectPt.y,
+              color: stroke.color,
+              size: 15 + Math.random() * 15
+            };
+            setMagicParticles(prev => [...prev.slice(-30), newParticle]);
+
+            setTimeout(() => {
+              setMagicParticles(prev => prev.filter(p => p.id !== newParticle.id));
+            }, 800);
+          }
+        }
+      }
+    }
+    lastHoverPos.current = { x: currentWorldX, y: currentWorldY };
+
     if (tool === 'pen') {
       if (currentStroke) {
         const worldX = (event.clientX - view.x) / view.scale;
@@ -378,6 +445,32 @@ export function Canvas() {
   // Workaround for CJS/ESM interop issue with react-cursor-cat in Vite
   const OnekoComponent = typeof Oneko === 'function' ? Oneko : (Oneko as any).default;
 
+  function doubleClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    const worldX = (event.clientX - view.x) / view.scale;
+    const worldY = (event.clientY - view.y) / view.scale;
+
+    playTreasureFound();
+
+    const newParticles: Particle[] = [];
+    for (let i = 0; i < 50; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 50 + Math.random() * 300;
+      newParticles.push({
+        id: Math.random().toString(36).slice(2),
+        x: worldX,
+        y: worldY,
+        color: STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)],
+        tx: `${Math.cos(angle) * distance}px`,
+        ty: `${Math.sin(angle) * distance}px`,
+      });
+    }
+    setParticles(prev => [...prev, ...newParticles]);
+    setTimeout(() => {
+      setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+    }, 600);
+  }
+
   // Calculate nearest undiscovered treasure
   const viewportCenterX = (innerWidth / 2 - view.x) / view.scale;
   const viewportCenterY = (innerHeight / 2 - view.y) / view.scale;
@@ -410,7 +503,7 @@ export function Canvas() {
     {isScanning && (
       <div className="lens-overlay" style={{ '--mouse-x': scanPos.x, '--mouse-y': scanPos.y } as React.CSSProperties} aria-hidden="true" />
     )}
-    <div ref={surface} className={`canvas-surface tool-${tool} ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
+    <div ref={surface} className={`canvas-surface tool-${tool} ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} onDoubleClick={doubleClick} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
       {ripples.map(ripple => (
         <div key={ripple.id} className="interaction-ripple" style={{ left: ripple.x, top: ripple.y, background: ripple.color || 'var(--primary)' }} />
       ))}
