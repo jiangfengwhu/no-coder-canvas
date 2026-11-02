@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -45,7 +45,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -85,10 +85,34 @@ export function Canvas() {
       if (event.key.toLowerCase() === 'p' || event.key.toLowerCase() === 'b') setTool('pen');
       if (event.key.toLowerCase() === 'm') setTool('magic');
       if (event.key.toLowerCase() === 's') setTool('scan');
+      if (event.key.toLowerCase() === 'e') setTool('stamp-brush');
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
   }, []);
+  function popStamp(x: number, y: number, id: string) {
+    setStamps(prev => prev.filter(s => s.id !== id));
+    playStampPop();
+
+    const newParticles: Particle[] = [];
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 30 + Math.random() * 70;
+      newParticles.push({
+        id: Math.random().toString(36).slice(2),
+        x: x,
+        y: y,
+        color: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e'][Math.floor(Math.random() * 5)],
+        tx: `${Math.cos(angle) * distance}px`,
+        ty: `${Math.sin(angle) * distance}px`,
+      });
+    }
+    setParticles(prev => [...prev, ...newParticles]);
+    setTimeout(() => {
+      setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+    }, 600);
+  }
+
   function down(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -114,6 +138,19 @@ export function Canvas() {
       setIsScanning(true);
       setScanPos({ x: event.clientX, y: event.clientY });
       playMagicSparkle();
+    } else if (tool === 'stamp-brush') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+      setStamps(prev => {
+        const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
+        if (next.length > 200) return next.slice(next.length - 200);
+        return next;
+      });
+      playStampPlace();
+      setDragging(true);
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -163,6 +200,27 @@ export function Canvas() {
         drag.current.isDrag = true;
       }
       drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+    } else if (tool === 'stamp-brush') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+
+      const dx = event.clientX - drag.current.x;
+      const dy = event.clientY - drag.current.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 40) {
+        const worldX = (event.clientX - view.x) / view.scale;
+        const worldY = (event.clientY - view.y) / view.scale;
+        const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+
+        setStamps(prev => {
+          const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
+          if (next.length > 200) return next.slice(next.length - 200);
+          return next;
+        });
+        playStampPlace();
+
+        drag.current = { ...drag.current, x: event.clientX, y: event.clientY, isDrag: true };
+      }
     } else {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
@@ -239,38 +297,18 @@ export function Canvas() {
           }
 
           if (poppedStampId) {
-            const stampToPop = stamps.find(s => s.id === poppedStampId);
-            setStamps(prev => prev.filter(s => s.id !== poppedStampId));
-            playStampPop();
-
-            if (stampToPop) {
-              const newParticles: Particle[] = [];
-              for (let i = 0; i < 10; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const distance = 30 + Math.random() * 70;
-                newParticles.push({
-                  id: Math.random().toString(36).slice(2),
-                  x: stampToPop.x,
-                  y: stampToPop.y,
-                  color: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e'][Math.floor(Math.random() * 5)],
-                  tx: `${Math.cos(angle) * distance}px`,
-                  ty: `${Math.sin(angle) * distance}px`,
-                });
-              }
-              setParticles(prev => [...prev, ...newParticles]);
-              setTimeout(() => {
-                setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
-              }, 600);
-            }
+            popStamp(worldX, worldY, poppedStampId);
           } else {
-            // Place normal stamp
-            const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-            setStamps(prev => {
-              const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
-              if (next.length > 100) return next.slice(next.length - 100);
-              return next;
-            });
-            playStampPlace();
+            // Place normal stamp if not using stamp-brush (as it already placed one on down)
+            if (tool !== 'stamp-brush') {
+              const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+              setStamps(prev => {
+                const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
+                if (next.length > 200) return next.slice(next.length - 200);
+                return next;
+              });
+              playStampPlace();
+            }
           }
         }
       }
@@ -354,7 +392,7 @@ export function Canvas() {
              <Sparkles size={p.size} />
           </div>
         ))}
-        {ballActive && <BouncyBall strokes={strokes} view={view} />}
+        {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
       </div>
     </div>
     <div className="canvas-controls" aria-label="画板视图控制">
@@ -368,6 +406,7 @@ export function Canvas() {
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => setTool('pen')}><Pen /></Button>
       <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => setTool('magic')}><Wand2 /></Button>
       <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => setTool('scan')}><Search /></Button>
+      <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => setTool('stamp-brush')}><Smile /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); }}><Eraser /></Button>
       )}
@@ -376,7 +415,7 @@ export function Canvas() {
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => setView(initial)}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放 · 快捷键 V / P(B) / M / S</p>
+    <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放 · 快捷键 V / P(B) / M / S / E</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 

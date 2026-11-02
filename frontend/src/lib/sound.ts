@@ -123,31 +123,47 @@ export function playMagicSparkle() {
   }
 }
 
-export function playBounce(velocityMag: number) {
+const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
+// C pentatonic scale frequencies
+const PENTATONIC_SCALE = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+
+export function playBounce(velocityMag: number, color?: string) {
   try {
     const ctx = getContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    // Map velocity to a frequency (faster = higher pitch)
-    const baseFreq = 200 + Math.min(velocityMag, 1500) * 0.5;
+    let baseFreq = 200 + Math.min(velocityMag, 1500) * 0.5;
+    let waveType: OscillatorType = 'sine';
+    let decayTime = 0.2;
 
-    osc.type = 'sine';
+    if (color) {
+      const colorIndex = STROKE_COLORS.indexOf(color);
+      if (colorIndex !== -1) {
+        baseFreq = PENTATONIC_SCALE[colorIndex % PENTATONIC_SCALE.length];
+        waveType = 'triangle';
+        decayTime = 0.4;
+      }
+    }
+
+    osc.type = waveType;
     osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, ctx.currentTime + 0.1);
+    if (!color) {
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, ctx.currentTime + 0.1);
+    }
 
     // Volume based on speed
     const vol = Math.max(0.02, Math.min(0.2, velocityMag / 3000));
 
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + decayTime);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start();
-    osc.stop(ctx.currentTime + 0.2);
+    osc.stop(ctx.currentTime + decayTime);
   } catch (e) {
     // Ignore
   }
