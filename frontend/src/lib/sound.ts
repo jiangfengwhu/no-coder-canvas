@@ -92,6 +92,37 @@ export function playTreasureFound() {
   }
 }
 
+export function playMagicSparkle() {
+  try {
+    const ctx = getContext();
+    const t = ctx.currentTime;
+
+    const playChime = (freq: number, startDelay: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+
+      gain.gain.setValueAtTime(0, t + startDelay);
+      gain.gain.linearRampToValueAtTime(0.05, t + startDelay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + startDelay + 0.3);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t + startDelay);
+      osc.stop(t + startDelay + 0.3);
+    };
+
+    playChime(1046.50, 0);      // C6
+    playChime(1318.51, 0.05);   // E6
+    playChime(1567.98, 0.1);    // G6
+  } catch (e) {
+    // Ignore
+  }
+}
+
 export function playBounce(velocityMag: number) {
   try {
     const ctx = getContext();
