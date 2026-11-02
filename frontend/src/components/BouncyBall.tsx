@@ -5,13 +5,14 @@ type Point = { x: number; y: number };
 type Stroke = { id: string; points: Point[]; color: string };
 type View = { x: number; y: number; scale: number };
 
-export function BouncyBall({ strokes, view }: { strokes: Stroke[], view: View }) {
+export function BouncyBall({ strokes, view, stamps, onStampHit }: { strokes: Stroke[], view: View, stamps: { id: string; x: number; y: number; emoji: string }[], onStampHit: (id: string, x: number, y: number) => void }) {
   const [pos, setPos] = useState<Point>({ x: 0, y: -500 });
   const posRef = useRef<Point>({ x: 0, y: -500 });
   const velRef = useRef<Point>({ x: 0, y: 0 });
   const lastTimeRef = useRef<number>(0);
   const strokesRef = useRef<Stroke[]>(strokes);
   const viewRef = useRef<View>(view);
+  const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string }[]>(stamps);
 
   // Keep refs updated for the animation loop
   useEffect(() => {
@@ -21,6 +22,10 @@ export function BouncyBall({ strokes, view }: { strokes: Stroke[], view: View })
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    stampsRef.current = stamps;
+  }, [stamps]);
 
   useEffect(() => {
     // Reset position initially based on viewport center
@@ -97,11 +102,40 @@ export function BouncyBall({ strokes, view }: { strokes: Stroke[], view: View })
 
               const speed = Math.hypot(velRef.current.x, velRef.current.y);
               if (speed > 50) {
-                playBounce(speed);
+                playBounce(speed, stroke.color);
               }
             }
 
             break;
+          }
+        }
+      }
+
+      // Collision detection with stamps
+      if (!hasCollided) {
+        for (const stamp of stampsRef.current) {
+          const dist = Math.hypot(nextX - stamp.x, nextY - stamp.y);
+          const stampRadius = 20; // Hit radius for stamps
+
+          if (dist < radius + stampRadius) {
+            // Collision with stamp!
+            let nx = (nextX - stamp.x) / dist;
+            let ny = (nextY - stamp.y) / dist;
+
+            // Push ball out
+            nextX = stamp.x + nx * (radius + stampRadius);
+            nextY = stamp.y + ny * (radius + stampRadius);
+
+            // Reflect velocity with a boost
+            const dot = velRef.current.x * nx + velRef.current.y * ny;
+            if (dot < 0) {
+              velRef.current.x = (velRef.current.x - 2 * dot * nx) * 1.1; // Boost
+              velRef.current.y = (velRef.current.y - 2 * dot * ny) * 1.1; // Boost
+
+              // Trigger stamp hit
+              onStampHit(stamp.id, stamp.x, stamp.y);
+            }
+            break; // Only hit one stamp per frame
           }
         }
       }
