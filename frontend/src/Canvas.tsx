@@ -39,6 +39,7 @@ export function Canvas() {
   const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
+  const [ripples, setRipples] = useState<{ id: string; x: number; y: number }[]>([]);
   const [tool, setTool] = useState<'pan' | 'pen'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [dragging, setDragging] = useState(false);
@@ -80,6 +81,13 @@ export function Canvas() {
   function down(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+
+    // Add visual ripple
+    const rippleId = Math.random().toString(36).slice(2);
+    setRipples(prev => [...prev, { id: rippleId, x: event.clientX, y: event.clientY }]);
+    setTimeout(() => {
+      setRipples(prev => prev.filter(r => r.id !== rippleId));
+    }, 600);
 
     if (tool === 'pen') {
       const worldX = (event.clientX - view.x) / view.scale;
@@ -180,7 +188,11 @@ export function Canvas() {
   const isVeryClose = nearestDist < 300;
 
   return <main className="canvas" aria-label="无限画板">
+    <div className={`canvas-edge-glow ${isVeryClose ? 'very-close' : isClose ? 'close' : ''}`} aria-hidden="true" />
     <div ref={surface} className={`canvas-surface ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
+      {ripples.map(ripple => (
+        <div key={ripple.id} className="interaction-ripple" style={{ left: ripple.x, top: ripple.y }} />
+      ))}
       <div className="canvas-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} aria-hidden="true">
         <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
           {strokes.map(stroke => (
