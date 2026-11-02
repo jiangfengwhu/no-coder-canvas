@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -17,6 +17,7 @@ const clamp = (n: number) => Math.max(.35, Math.min(2.5, n));
 
 const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋'];
 const TREASURE_EMOJIS = ['💎', '👑', '🎁', '🏆', '🔮', '💰', '🗝️'];
+const FOSSIL_EMOJIS = ['🦴', '💎', '🦖', '🏺', '🪙', '🗿'];
 const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
 
 const ALCHEMY_PAIRS: [string, string, string][] = [
@@ -34,6 +35,7 @@ const ALCHEMY_RECIPES = Object.fromEntries(
 );
 
 type Treasure = { id: string; x: number; y: number; emoji: string; discovered: boolean };
+type Fossil = { id: string; x: number; y: number; emoji: string; maxHP: number; hp: number };
 type Point = { x: number; y: number };
 type Stroke = { id: string; points: Point[]; color: string };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
@@ -41,7 +43,7 @@ type MagicParticle = { id: string; x: number; y: number; color: string; size: nu
 type VisualRing = { id: string; color: string };
 type SoundCaption = { id: string; color: string; text: string; x: number; y: number };
 type SonarPing = { id: string; x: number; y: number };
-type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp'; delay: number; emoji: string };
+type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp' | 'fossil'; delay: number; emoji: string };
 
 function generateTreasures(): Treasure[] {
   const treasures: Treasure[] = [];
@@ -60,6 +62,24 @@ function generateTreasures(): Treasure[] {
   return treasures;
 }
 
+function generateFossils(): Fossil[] {
+  const fossils: Fossil[] = [];
+  for (let i = 0; i < 40; i++) {
+    const angle = Math.random() * 2 * Math.PI;
+    const radius = 1000 + Math.random() * 7000;
+    const maxHP = 50 + Math.floor(Math.random() * 100);
+    fossils.push({
+      id: `fossil-${i}`,
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      emoji: FOSSIL_EMOJIS[Math.floor(Math.random() * FOSSIL_EMOJIS.length)],
+      maxHP,
+      hp: maxHP
+    });
+  }
+  return fossils;
+}
+
 // Application features belong inside this workspace; the control shell is separate.
 export function Canvas() {
   const [view, setView] = useState(initial);
@@ -68,8 +88,9 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
+  const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
   const [ballActive, setBallActive] = useState(false);
@@ -267,6 +288,7 @@ export function Canvas() {
       if (key === 'c') { setTool('confetti'); showToast('已切换至: 派对纸屑'); }
       if (key === 'k') { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }
       if (key === 't') { setTool('tornado'); showToast('已切换至: 龙卷风'); }
+      if (key === 'd') { setTool('dig'); showToast('已切换至: 挖掘'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -319,6 +341,7 @@ export function Canvas() {
       'sonar': 'var(--cyan-400, #22d3ee)',
       'pen': 'var(--blue-500, #3b82f6)',
       'pan': 'var(--primary)',
+      'dig': 'var(--orange-500, #f97316)',
     };
 
     const rippleId = Math.random().toString(36).slice(2);
@@ -379,6 +402,9 @@ export function Canvas() {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
       playStampPop();
+    } else if (tool === 'dig') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -636,6 +662,71 @@ export function Canvas() {
         return { ...t, x: event.clientX, y: event.clientY }; // Updates all active tornadoes to this pos, but usually there's only 1 active drag
       }));
 
+    } else if (tool === 'dig') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+
+      let foundFossil = false;
+      const uncoveredFossils: Fossil[] = [];
+
+      setFossils(prev => {
+        let changed = false;
+        const next = prev.map(f => {
+          if (f.hp <= 0) return f;
+          const dist = Math.hypot(f.x - worldX, f.y - worldY);
+          if (dist < 60) {
+            changed = true;
+            foundFossil = true;
+            const damage = 5 + Math.random() * 5;
+            const newHp = Math.max(0, f.hp - damage);
+            if (newHp === 0) {
+              uncoveredFossils.push({ ...f, hp: newHp });
+            }
+            return { ...f, hp: newHp };
+          }
+          return f;
+        });
+
+        return changed ? next.filter(f => f.hp > 0) : prev;
+      });
+
+      if (uncoveredFossils.length > 0) {
+        setStamps(s => {
+          const newStamps = uncoveredFossils.map(f => ({ id: Math.random().toString(36).slice(2), x: f.x, y: f.y, emoji: f.emoji }));
+          return [...s, ...newStamps];
+        });
+        playTreasureFound();
+      }
+
+      // Check dirt particles based on local variable mutated inside functional update
+      // Better to use state tracking or derive it outside. For this, since React updater might not run synchronously:
+      // We do a manual check against fossils state.
+      const isDiggingFossil = fossils.some(f => Math.hypot(f.x - worldX, f.y - worldY) < 60 && f.hp > 0);
+
+      if (isDiggingFossil && Math.random() < 0.3) {
+        // Spawn dirt particle
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 10 + Math.random() * 40;
+        const particleId = Math.random().toString(36).slice(2);
+        setParticles(prev => [...prev.slice(-100), {
+          id: particleId,
+          x: worldX,
+          y: worldY,
+          color: '#8b4513', // dirt color
+          tx: `${Math.cos(angle) * distance}px`,
+          ty: `${Math.sin(angle) * distance}px`,
+        }]);
+        setTimeout(() => {
+          setParticles(prev => prev.filter(p => p.id !== particleId));
+        }, 600);
+      }
+
     } else if (tool === 'ninja') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
@@ -809,6 +900,21 @@ export function Canvas() {
           }
         });
 
+        fossils.forEach(f => {
+          if (f.hp > 0) {
+            const dist = Math.hypot(f.x - worldX, f.y - worldY);
+            if (dist < maxDist) {
+              foundCount++;
+              newHighlights.push({
+                id: Math.random().toString(36).slice(2),
+                x: f.x, y: f.y, type: 'fossil',
+                delay: dist / speed,
+                emoji: f.emoji
+              });
+            }
+          }
+        });
+
         if (newHighlights.length > 0) {
           setSonarHighlights(prev => [...prev, ...newHighlights]);
         }
@@ -838,6 +944,9 @@ export function Canvas() {
       drag.current = null;
       setDragging(false);
     } else if (tool === 'snake') {
+      drag.current = null;
+      setDragging(false);
+    } else if (tool === 'dig') {
       drag.current = null;
       setDragging(false);
     } else if (tool === 'confetti') {
@@ -1084,6 +1193,14 @@ export function Canvas() {
             {t.emoji}
           </div>
         ))}
+        {fossils.map(f => f.hp > 0 ? (
+          <div key={f.id} className="hidden-fossil" style={{
+            left: f.x, top: f.y,
+            opacity: Math.max(0, 1 - f.hp / f.maxHP) * 0.8
+          }} aria-hidden="true">
+            {f.emoji}
+          </div>
+        ) : null)}
         {particles.map(p => (
           <div key={p.id} className="canvas-particle" style={{
             left: p.x - 4, top: p.y - 4, width: 8, height: 8, backgroundColor: p.color,
@@ -1151,6 +1268,7 @@ export function Canvas() {
       <Button variant={tool === 'confetti' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="派对纸屑" onClick={() => { setTool('confetti'); showToast('已切换至: 派对纸屑'); }}><PartyPopper /></Button>
       <Button variant={tool === 'kaleidoscope' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="万花筒" onClick={() => { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }}><Snowflake /></Button>
       <Button variant={tool === 'tornado' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="龙卷风" onClick={() => { setTool('tornado'); showToast('已切换至: 龙卷风'); }}><Tornado /></Button>
+      <Button variant={tool === 'dig' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="挖掘" onClick={() => { setTool('dig'); showToast('已切换至: 挖掘'); }}><Pickaxe /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
