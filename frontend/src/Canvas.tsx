@@ -4,6 +4,7 @@ import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand } fro
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
+import { playStampPlace, playStampPop, playTreasureFound } from '@/lib/sound';
 
 type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
@@ -16,6 +17,7 @@ const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#
 type Treasure = { id: string; x: number; y: number; emoji: string; discovered: boolean };
 type Point = { x: number; y: number };
 type Stroke = { id: string; points: Point[]; color: string };
+type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 
 function generateTreasures(): Treasure[] {
   const treasures: Treasure[] = [];
@@ -39,6 +41,7 @@ export function Canvas() {
   const [view, setView] = useState(initial);
   const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number }[]>([]);
   const [tool, setTool] = useState<'pan' | 'pen'>('pan');
@@ -149,14 +152,72 @@ export function Canvas() {
             next[foundIndex] = { ...next[foundIndex], discovered: true };
             return next;
           });
+          playTreasureFound();
+
+          // Spawn confetti particles
+          const newParticles: Particle[] = [];
+          for (let i = 0; i < 30; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 50 + Math.random() * 150;
+            newParticles.push({
+              id: Math.random().toString(36).slice(2),
+              x: treasures[foundIndex].x,
+              y: treasures[foundIndex].y,
+              color: ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'][Math.floor(Math.random() * 5)],
+              tx: `${Math.cos(angle) * distance}px`,
+              ty: `${Math.sin(angle) * distance}px`,
+            });
+          }
+          setParticles(prev => [...prev, ...newParticles]);
+          setTimeout(() => {
+            setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+          }, 600);
+
         } else {
-          // Place normal stamp
-          const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-          setStamps(prev => {
-            const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
-            if (next.length > 100) return next.slice(next.length - 100);
-            return next;
-          });
+          // Check if clicking on an existing stamp to pop it
+          let poppedStampId: string | null = null;
+          for (let i = stamps.length - 1; i >= 0; i--) {
+            const dist = Math.hypot(stamps[i].x - worldX, stamps[i].y - worldY);
+            if (dist < 40) { // Stamp hit radius
+              poppedStampId = stamps[i].id;
+              break;
+            }
+          }
+
+          if (poppedStampId) {
+            const stampToPop = stamps.find(s => s.id === poppedStampId);
+            setStamps(prev => prev.filter(s => s.id !== poppedStampId));
+            playStampPop();
+
+            if (stampToPop) {
+              const newParticles: Particle[] = [];
+              for (let i = 0; i < 10; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 30 + Math.random() * 70;
+                newParticles.push({
+                  id: Math.random().toString(36).slice(2),
+                  x: stampToPop.x,
+                  y: stampToPop.y,
+                  color: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e'][Math.floor(Math.random() * 5)],
+                  tx: `${Math.cos(angle) * distance}px`,
+                  ty: `${Math.sin(angle) * distance}px`,
+                });
+              }
+              setParticles(prev => [...prev, ...newParticles]);
+              setTimeout(() => {
+                setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+              }, 600);
+            }
+          } else {
+            // Place normal stamp
+            const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+            setStamps(prev => {
+              const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
+              if (next.length > 100) return next.slice(next.length - 100);
+              return next;
+            });
+            playStampPlace();
+          }
         }
       }
       drag.current = null;
@@ -214,6 +275,12 @@ export function Canvas() {
             <div className="stamp-inner">{t.emoji}</div>
             <div className="treasure-label">发现宝藏！</div>
           </div>
+        ))}
+        {particles.map(p => (
+          <div key={p.id} className="canvas-particle" style={{
+            left: p.x - 4, top: p.y - 4, width: 8, height: 8, backgroundColor: p.color,
+            '--tx': p.tx, '--ty': p.ty
+          } as React.CSSProperties} />
         ))}
         {ballActive && <BouncyBall strokes={strokes} view={view} />}
       </div>

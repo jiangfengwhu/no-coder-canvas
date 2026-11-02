@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { playBounce } from '@/lib/sound';
 
 type Point = { x: number; y: number };
 type Stroke = { id: string; points: Point[]; color: string };
@@ -93,6 +94,11 @@ export function BouncyBall({ strokes, view }: { strokes: Stroke[], view: View })
             if (dot < 0) {
               velRef.current.x = (velRef.current.x - 2 * dot * nx) * bounceRestitution;
               velRef.current.y = (velRef.current.y - 2 * dot * ny) * bounceRestitution;
+
+              const speed = Math.hypot(velRef.current.x, velRef.current.y);
+              if (speed > 50) {
+                playBounce(speed);
+              }
             }
 
             break;
