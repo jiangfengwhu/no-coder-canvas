@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2 } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -68,7 +68,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -80,6 +80,8 @@ export function Canvas() {
   const [sonarHighlights, setSonarHighlights] = useState<SonarHighlight[]>([]);
   const [isRepelling, setIsRepelling] = useState(false);
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
+
+  const [activeTornadoes, setActiveTornadoes] = useState<{ id: string; x: number; y: number }[]>([]);
 
   const [shootSequence, setShootSequence] = useState(0);
   const [shootVector, setShootVector] = useState({ x: 0, y: 0 });
@@ -264,6 +266,7 @@ export function Canvas() {
       if (key === 'n') { setTool('ninja'); showToast('已切换至: 切水果'); }
       if (key === 'c') { setTool('confetti'); showToast('已切换至: 派对纸屑'); }
       if (key === 'k') { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }
+      if (key === 't') { setTool('tornado'); showToast('已切换至: 龙卷风'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -364,6 +367,11 @@ export function Canvas() {
     } else if (tool === 'magnet') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
+    } else if (tool === 'tornado') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+      const tornadoId = Math.random().toString(36).slice(2);
+      setActiveTornadoes(prev => [...prev, { id: tornadoId, x: event.clientX, y: event.clientY }]);
     } else if (tool === 'ninja') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -614,6 +622,20 @@ export function Canvas() {
         }
         return stroke;
       }));
+    } else if (tool === 'tornado') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+
+      // Update tornado position
+      setActiveTornadoes(prev => prev.map(t => {
+        // Find the tornado created by this drag (assuming 1 for simplicity here, or match by some logic)
+        return { ...t, x: event.clientX, y: event.clientY }; // Updates all active tornadoes to this pos, but usually there's only 1 active drag
+      }));
+
     } else if (tool === 'ninja') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
@@ -805,6 +827,10 @@ export function Canvas() {
       }
       drag.current = null;
       setDragging(false);
+    } else if (tool === 'tornado') {
+      setActiveTornadoes([]);
+      drag.current = null;
+      setDragging(false);
     } else if (tool === 'magnet') {
       drag.current = null;
       setDragging(false);
@@ -848,6 +874,100 @@ export function Canvas() {
       setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
     }, 600);
   }
+
+  // Tornado effect logic (animation loop)
+  useEffect(() => {
+    if (activeTornadoes.length === 0) return;
+
+    let animationFrameId: number;
+    let lastTime = performance.now();
+
+    const updateTornado = (time: number) => {
+      const dt = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (dt > 0.1) {
+        animationFrameId = requestAnimationFrame(updateTornado);
+        return; // skip large jumps
+      }
+
+      const tornadoRadius = 400; // Radius of effect
+      const pullForce = 150; // pixels per second
+      const spinSpeed = 3; // radians per second
+
+      const processEntities = (entities: any[], setEntities: React.Dispatch<React.SetStateAction<any[]>>, isTreasure = false) => {
+        let changed = false;
+        const newEntities = entities.map(entity => {
+          if (isTreasure && entity.discovered) return entity;
+
+          let entityX = entity.x;
+          let entityY = entity.y;
+
+          for (const tornado of activeTornadoes) {
+             const tx = tornado.x;
+             const ty = tornado.y;
+             const exScreen = entityX * view.scale + view.x;
+             const eyScreen = entityY * view.scale + view.y;
+
+             const dx = exScreen - tx;
+             const dy = eyScreen - ty;
+             const dist = Math.hypot(dx, dy);
+
+             if (dist > 0 && dist < tornadoRadius) {
+               changed = true;
+
+               // Calculate new position
+               let angle = Math.atan2(dy, dx);
+               let radius = dist;
+
+               // Pull inward (inverse square ish or linear)
+               const pull = (1 - dist / tornadoRadius) * pullForce * dt;
+               radius = Math.max(10, radius - pull);
+
+               // Spin (faster when closer)
+               const spin = (1 - dist / tornadoRadius + 0.2) * spinSpeed * dt;
+               angle += spin;
+
+               // Back to screen coordinates
+               const newExScreen = tx + Math.cos(angle) * radius;
+               const newEyScreen = ty + Math.sin(angle) * radius;
+
+               // Convert to world coordinates
+               entityX = (newExScreen - view.x) / view.scale;
+               entityY = (newEyScreen - view.y) / view.scale;
+             }
+          }
+
+          if (entityX !== entity.x || entityY !== entity.y) {
+             return { ...entity, x: entityX, y: entityY };
+          }
+          return entity;
+        });
+
+        if (changed) {
+          setEntities(newEntities as any);
+        }
+      };
+
+      setStamps(prevStamps => {
+          let currentStamps = prevStamps;
+          processEntities(currentStamps, (n) => currentStamps = n as any);
+          return currentStamps;
+      });
+
+      setTreasures(prevTreasures => {
+          let currentTreasures = prevTreasures;
+          processEntities(currentTreasures, (n) => currentTreasures = n as any, true);
+          return currentTreasures;
+      });
+
+      animationFrameId = requestAnimationFrame(updateTornado);
+    };
+
+    animationFrameId = requestAnimationFrame(updateTornado);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [activeTornadoes, view]);
 
   // Calculate nearest undiscovered treasure
   const viewportCenterX = (innerWidth / 2 - view.x) / view.scale;
@@ -898,6 +1018,17 @@ export function Canvas() {
     {isScanning && (
       <div className="lens-overlay" style={{ '--mouse-x': scanPos.x, '--mouse-y': scanPos.y } as React.CSSProperties} aria-hidden="true" />
     )}
+    {tool === 'tornado' && dragging && drag.current && activeTornadoes.map(t => (
+      <div
+        key={t.id}
+        className="tornado-field"
+        style={{ left: t.x, top: t.y }}
+        aria-hidden="true"
+      >
+        <div className="tornado-swirl" />
+        <div className="tornado-swirl reverse" />
+      </div>
+    ))}
     {tool === 'magnet' && drag.current && dragging && (
       <div
         className={`magnet-field ${isRepelling ? 'repel' : ''}`}
@@ -1019,6 +1150,7 @@ export function Canvas() {
       <Button variant={tool === 'snake' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="贪吃蛇" onClick={() => { setTool('snake'); showToast('已切换至: 贪吃蛇'); }}><Gamepad2 /></Button>
       <Button variant={tool === 'confetti' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="派对纸屑" onClick={() => { setTool('confetti'); showToast('已切换至: 派对纸屑'); }}><PartyPopper /></Button>
       <Button variant={tool === 'kaleidoscope' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="万花筒" onClick={() => { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }}><Snowflake /></Button>
+      <Button variant={tool === 'tornado' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="龙卷风" onClick={() => { setTool('tornado'); showToast('已切换至: 龙卷风'); }}><Tornado /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
@@ -1027,7 +1159,7 @@ export function Canvas() {
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => { setView(initial); showToast('视图已重置'); }}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G / A / K</p>
+    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G / A / K / T</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 
