@@ -19,6 +19,20 @@ const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', 
 const TREASURE_EMOJIS = ['💎', '👑', '🎁', '🏆', '🔮', '💰', '🗝️'];
 const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
 
+const ALCHEMY_PAIRS: [string, string, string][] = [
+  ['🔥', '🍀', '🌳'],
+  ['🔥', '💧', '☁️'],
+  ['⭐', '🚀', '🛸'],
+  ['💡', '❤️', '💖'],
+  ['🦋', '🌺', '🧚'],
+  ['🐾', '🍕', '💩'],
+  ['💧', '🌈', '🦄'],
+  ['✨', '🎉', '🎊']
+];
+const ALCHEMY_RECIPES = Object.fromEntries(
+  ALCHEMY_PAIRS.map(([a, b, result]) => [[a, b].sort().join('+'), result])
+);
+
 type Treasure = { id: string; x: number; y: number; emoji: string; discovered: boolean };
 type Point = { x: number; y: number };
 type Stroke = { id: string; points: Point[]; color: string };
@@ -72,6 +86,75 @@ export function Canvas() {
 
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
   const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
+
+  // Emoji Alchemy logic
+  useEffect(() => {
+    if (stamps.length < 2) return;
+
+    // Using a timeout to avoid reacting immediately during render
+    const timeout = setTimeout(() => {
+      let merged = false;
+      const toRemove = new Set<string>();
+      let newStamp: { x: number, y: number, emoji: string } | null = null;
+      let newParticles: Particle[] = [];
+      let alchemyResult = '';
+
+      for (let i = 0; i < stamps.length; i++) {
+        if (merged) break;
+        for (let j = i + 1; j < stamps.length; j++) {
+          const s1 = stamps[i];
+          const s2 = stamps[j];
+          const dist = Math.hypot(s1.x - s2.x, s1.y - s2.y);
+
+          if (dist < 80) {
+            const recipeKey = [s1.emoji, s2.emoji].sort().join('+');
+            if (ALCHEMY_RECIPES[recipeKey]) {
+              merged = true;
+              toRemove.add(s1.id);
+              toRemove.add(s2.id);
+              alchemyResult = ALCHEMY_RECIPES[recipeKey];
+              const midX = (s1.x + s2.x) / 2;
+              const midY = (s1.y + s2.y) / 2;
+              newStamp = { x: midX, y: midY, emoji: alchemyResult };
+
+              for (let k = 0; k < 20; k++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 20 + Math.random() * 80;
+                newParticles.push({
+                  id: Math.random().toString(36).slice(2),
+                  x: midX,
+                  y: midY,
+                  color: STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)],
+                  tx: `${Math.cos(angle) * distance}px`,
+                  ty: `${Math.sin(angle) * distance}px`,
+                });
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      if (merged && newStamp) {
+        setStamps(prev => {
+          const filtered = prev.filter(s => !toRemove.has(s.id));
+          return [...filtered, { id: Math.random().toString(36).slice(2), x: newStamp!.x, y: newStamp!.y, emoji: newStamp!.emoji }];
+        });
+
+        playMagicSparkle();
+        showToast(`炼金术：合成了 ${alchemyResult}!`);
+
+        if (newParticles.length > 0) {
+          setParticles(prev => [...prev, ...newParticles]);
+          setTimeout(() => {
+             setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+          }, 600);
+        }
+      }
+    }, 100);
+
+    return () => clearTimeout(timeout);
+  }, [stamps]);
 
   const handleAnimalDiscover = (x: number, y: number, emoji: string) => {
     setStamps(prev => {
