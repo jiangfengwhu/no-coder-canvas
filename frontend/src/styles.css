@@ -295,3 +295,21 @@
   50% { transform: translate(-50%, -50%) scale(1.2) rotate(180deg); opacity: 0.8; }
   100% { transform: translate(-50%, -50%) scale(0) rotate(360deg); opacity: 0; }
 }
+
+.lens-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+  background: radial-gradient(circle at calc(var(--mouse-x) * 1px) calc(var(--mouse-y) * 1px), transparent 100px, rgba(0,0,0,0.8) 250px);
+}
+
+.hidden-treasure {
+  position: absolute;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  user-select: none;
+  transition: opacity 0.2s;
+  font-size: 32px;
+  filter: sepia(1) hue-rotate(180deg) brightness(1.5) drop-shadow(0 0 10px rgba(0, 255, 255, 0.8));
+}
