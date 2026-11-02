@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -52,7 +52,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -164,6 +164,7 @@ export function Canvas() {
       if (key === 'a') { setTool('magnet'); showToast('已切换至: 磁铁'); }
       if (key === 'n') { setTool('ninja'); showToast('已切换至: 切水果'); }
       if (key === 'c') { setTool('confetti'); showToast('已切换至: 派对纸屑'); }
+      if (key === 'k') { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -224,7 +225,7 @@ export function Canvas() {
       setRipples(prev => prev.filter(r => r.id !== rippleId));
     }, 600);
 
-    if (tool === 'pen') {
+    if (tool === 'pen' || tool === 'kaleidoscope') {
       const worldX = (event.clientX - view.x) / view.scale;
       const worldY = (event.clientY - view.y) / view.scale;
       const color = STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)];
@@ -337,7 +338,7 @@ export function Canvas() {
     }
     lastHoverPos.current = { x: currentWorldX, y: currentWorldY };
 
-    if (tool === 'pen') {
+    if (tool === 'pen' || tool === 'kaleidoscope') {
       if (currentStroke) {
         const worldX = (event.clientX - view.x) / view.scale;
         const worldY = (event.clientY - view.y) / view.scale;
@@ -530,6 +531,27 @@ export function Canvas() {
     if (tool === 'pen') {
       if (currentStroke) {
         setStrokes(prev => [...prev, currentStroke]);
+        setCurrentStroke(null);
+      }
+    } else if (tool === 'kaleidoscope') {
+      if (currentStroke && currentStroke.points.length > 0) {
+        const N = 8;
+        const center = currentStroke.points[0];
+        const newStrokes: Stroke[] = [];
+        for (let i = 0; i < N; i++) {
+          const angle = (i * 2 * Math.PI) / N;
+          const color = STROKE_COLORS[(STROKE_COLORS.indexOf(currentStroke.color) + i) % STROKE_COLORS.length];
+          const rotatedPoints = currentStroke.points.map(p => {
+            const dx = p.x - center.x;
+            const dy = p.y - center.y;
+            return {
+              x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle),
+              y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle)
+            };
+          });
+          newStrokes.push({ id: Math.random().toString(36).slice(2), points: rotatedPoints, color });
+        }
+        setStrokes(prev => [...prev, ...newStrokes]);
         setCurrentStroke(null);
       }
     } else if (drag.current?.id === event.pointerId) {
@@ -772,8 +794,25 @@ export function Canvas() {
           {strokes.map(stroke => (
             <polyline key={stroke.id} points={stroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
           ))}
-          {currentStroke && (
+          {currentStroke && tool !== 'kaleidoscope' && (
             <polyline points={currentStroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={currentStroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+          )}
+          {currentStroke && tool === 'kaleidoscope' && (
+            Array.from({ length: 8 }).map((_, i) => {
+              const color = STROKE_COLORS[(STROKE_COLORS.indexOf(currentStroke.color) + i) % STROKE_COLORS.length];
+              return (
+                <polyline
+                  key={i}
+                  points={currentStroke.points.map(p => `${p.x},${p.y}`).join(' ')}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  transform={`rotate(${i * 45} ${currentStroke.points[0].x} ${currentStroke.points[0].y})`}
+                />
+              );
+            })
           )}
         </svg>
         {stamps.map(stamp => (
@@ -857,6 +896,7 @@ export function Canvas() {
       <Button variant={tool === 'magnet' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="磁铁" onClick={() => { setTool('magnet'); showToast('已切换至: 磁铁'); }}><Magnet /></Button>
       <Button variant={tool === 'ninja' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="切水果" onClick={() => { setTool('ninja'); showToast('已切换至: 切水果'); }}><Swords /></Button>
       <Button variant={tool === 'confetti' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="派对纸屑" onClick={() => { setTool('confetti'); showToast('已切换至: 派对纸屑'); }}><PartyPopper /></Button>
+      <Button variant={tool === 'kaleidoscope' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="万花筒" onClick={() => { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }}><Snowflake /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
@@ -865,7 +905,7 @@ export function Canvas() {
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => { setView(initial); showToast('视图已重置'); }}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G / A</p>
+    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G / A / K</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 
