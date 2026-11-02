@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -8,6 +8,7 @@ import { MiniGolf } from '@/components/MiniGolf';
 import { MusicBox } from '@/components/MusicBox';
 import { FruitNinja } from '@/components/FruitNinja';
 import { CanvasSnake } from '@/components/CanvasSnake';
+import { SpaceShooter } from '@/components/SpaceShooter';
 import { WildlifeTracker } from '@/components/WildlifeTracker';
 import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle, playBounce } from '@/lib/sound';
 
@@ -88,7 +89,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
@@ -488,7 +489,7 @@ export function Canvas() {
       setRipples(prev => prev.filter(r => r.id !== rippleId));
     }, 600);
 
-    if (tool === 'snake') {
+    if (tool === 'snake' || tool === 'shooter') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: true };
       setDragging(true);
       pointerWorldPosRef.current = { x: (event.clientX - view.x) / view.scale, y: (event.clientY - view.y) / view.scale };
@@ -620,7 +621,7 @@ export function Canvas() {
     }
     lastHoverPos.current = { x: currentWorldX, y: currentWorldY };
 
-    if (tool === 'snake') {
+    if (tool === 'snake' || tool === 'shooter') {
        if (pointerWorldPosRef) {
           pointerWorldPosRef.current = { x: currentWorldX, y: currentWorldY };
        }
@@ -1097,7 +1098,7 @@ export function Canvas() {
     } else if (tool === 'ninja') {
       drag.current = null;
       setDragging(false);
-    } else if (tool === 'snake') {
+    } else if (tool === 'snake' || tool === 'shooter') {
       drag.current = null;
       setDragging(false);
     } else if (tool === 'dig') {
@@ -1443,6 +1444,7 @@ export function Canvas() {
       </div>
       {tool === 'ninja' && <FruitNinja view={view} dragRef={drag} />}
       {tool === 'snake' && <CanvasSnake strokes={strokes} view={view} pointerWorldPosRef={pointerWorldPosRef} />}
+      {tool === 'shooter' && <SpaceShooter view={view} pointerWorldPosRef={pointerWorldPosRef} />}
 
       {/* Aiming line overlay for golf */}
       {tool === 'golf' && dragging && drag.current && drag.current.isDrag && (
@@ -1483,6 +1485,7 @@ export function Canvas() {
       <Button variant={tool === 'tornado' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="龙卷风" onClick={() => { setTool('tornado'); showToast('已切换至: 龙卷风'); }}><Tornado /></Button>
       <Button variant={tool === 'dig' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="挖掘" onClick={() => { setTool('dig'); showToast('已切换至: 挖掘'); }}><Pickaxe /></Button>
       <Button variant={tool === 'laser' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="激光" onClick={() => { setTool('laser'); showToast('已切换至: 激光'); }}><Zap /></Button>
+      <Button variant={tool === 'shooter' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="星际保卫战" onClick={() => { setTool('shooter'); showToast('已切换至: 星际保卫战'); }}><Rocket /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
