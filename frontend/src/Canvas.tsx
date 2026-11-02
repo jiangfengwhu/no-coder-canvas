@@ -44,7 +44,7 @@ export function Canvas() {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
-  const [ripples, setRipples] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
@@ -52,6 +52,15 @@ export function Canvas() {
   const [ballActive, setBallActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanPos, setScanPos] = useState({ x: 0, y: 0 });
+  const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
+
+  function showToast(message: string) {
+    const id = Math.random().toString(36).slice(2);
+    setToast({ id, message });
+    setTimeout(() => {
+      setToast(current => current?.id === id ? null : current);
+    }, 2500);
+  }
   const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; isDrag: boolean } | null>(null);
   const surface = useRef<HTMLDivElement>(null);
   function zoom(factor: number, x: number, y: number) {
@@ -81,11 +90,27 @@ export function Canvas() {
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.key.toLowerCase() === 'v') setTool('pan');
-      if (event.key.toLowerCase() === 'p' || event.key.toLowerCase() === 'b') setTool('pen');
-      if (event.key.toLowerCase() === 'm') setTool('magic');
-      if (event.key.toLowerCase() === 's') setTool('scan');
-      if (event.key.toLowerCase() === 'e') setTool('stamp-brush');
+
+      const key = event.key.toLowerCase();
+
+      // Tool switching
+      if (key === 'v') { setTool('pan'); showToast('已切换至: 拖动'); }
+      if (key === 'p' || key === 'b') { setTool('pen'); showToast('已切换至: 画笔'); }
+      if (key === 'm') { setTool('magic'); showToast('已切换至: 魔法棒'); }
+      if (key === 's') { setTool('scan'); showToast('已切换至: 扫描仪'); }
+      if (key === 'e') { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }
+
+      // Viewport Pan
+      const panStep = 50;
+      if (key === 'arrowup') setView(v => ({ ...v, y: v.y + panStep }));
+      if (key === 'arrowdown') setView(v => ({ ...v, y: v.y - panStep }));
+      if (key === 'arrowleft') setView(v => ({ ...v, x: v.x + panStep }));
+      if (key === 'arrowright') setView(v => ({ ...v, x: v.x - panStep }));
+
+      // Viewport Zoom & Reset
+      if (key === '=' || key === '+') { zoom(1.2, innerWidth / 2, innerHeight / 2); showToast('已放大'); }
+      if (key === '-') { zoom(1 / 1.2, innerWidth / 2, innerHeight / 2); showToast('已缩小'); }
+      if (key === '0') { setView(initial); showToast('视图已重置'); }
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
@@ -117,9 +142,17 @@ export function Canvas() {
     if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
 
-    // Add visual ripple
+    // Add visual ripple with dynamic color based on tool
+    const rippleColorMap: Record<string, string> = {
+      'magic': 'var(--purple-500, #a855f7)',
+      'stamp-brush': 'var(--green-500, #22c55e)',
+      'scan': 'var(--cyan-500, #06b6d4)',
+      'pen': 'var(--blue-500, #3b82f6)',
+      'pan': 'var(--primary)',
+    };
+
     const rippleId = Math.random().toString(36).slice(2);
-    setRipples(prev => [...prev, { id: rippleId, x: event.clientX, y: event.clientY }]);
+    setRipples(prev => [...prev, { id: rippleId, x: event.clientX, y: event.clientY, color: rippleColorMap[tool] }]);
     setTimeout(() => {
       setRipples(prev => prev.filter(r => r.id !== rippleId));
     }, 600);
@@ -265,6 +298,7 @@ export function Canvas() {
             return next;
           });
           playTreasureFound();
+          showToast(`发现宝藏！ ${treasures[foundIndex].emoji}`);
 
           // Spawn confetti particles
           const newParticles: Particle[] = [];
@@ -343,13 +377,18 @@ export function Canvas() {
   const isVeryClose = nearestDist < 300;
 
   return <main className="canvas" aria-label="无限画板">
+    {toast && (
+      <div className="canvas-toast" aria-live="polite" role="status">
+        {toast.message}
+      </div>
+    )}
     <div className={`canvas-edge-glow ${isVeryClose ? 'very-close' : isClose ? 'close' : ''}`} aria-hidden="true" />
     {isScanning && (
       <div className="lens-overlay" style={{ '--mouse-x': scanPos.x, '--mouse-y': scanPos.y } as React.CSSProperties} aria-hidden="true" />
     )}
-    <div ref={surface} className={`canvas-surface ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
+    <div ref={surface} className={`canvas-surface tool-${tool} ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
       {ripples.map(ripple => (
-        <div key={ripple.id} className="interaction-ripple" style={{ left: ripple.x, top: ripple.y }} />
+        <div key={ripple.id} className="interaction-ripple" style={{ left: ripple.x, top: ripple.y, background: ripple.color || 'var(--primary)' }} />
       ))}
       <div className="canvas-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} aria-hidden="true">
         <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
@@ -401,21 +440,21 @@ export function Canvas() {
           {isVeryClose ? <Sparkles className="animate-pulse" /> : <Navigation style={{ transform: `rotate(${nearestAngle + Math.PI / 2}rad)` }} />}
         </div>
       )}
-      <Button variant={ballActive ? 'secondary' : 'ghost'} size="icon-sm" aria-label="弹力球游戏" onClick={() => setBallActive(prev => !prev)}><Sparkles /></Button>
-      <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => setTool('pan')}><Hand /></Button>
-      <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => setTool('pen')}><Pen /></Button>
-      <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => setTool('magic')}><Wand2 /></Button>
-      <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => setTool('scan')}><Search /></Button>
-      <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => setTool('stamp-brush')}><Smile /></Button>
+      <Button variant={ballActive ? 'secondary' : 'ghost'} size="icon-sm" aria-label="弹力球游戏" onClick={() => { setBallActive(prev => { const next = !prev; showToast(next ? '弹力球游戏: 开启' : '弹力球游戏: 关闭'); return next; }); }}><Sparkles /></Button>
+      <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => { setTool('pan'); showToast('已切换至: 拖动'); }}><Hand /></Button>
+      <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => { setTool('pen'); showToast('已切换至: 画笔'); }}><Pen /></Button>
+      <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => { setTool('magic'); showToast('已切换至: 魔法棒'); }}><Wand2 /></Button>
+      <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => { setTool('scan'); showToast('已切换至: 扫描仪'); }}><Search /></Button>
+      <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }}><Smile /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
-        <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); }}><Eraser /></Button>
+        <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
       <Button variant="ghost" size="icon-sm" aria-label="缩小画板" onClick={() => zoom(1 / 1.2, innerWidth / 2, innerHeight / 2)}><Minus /></Button>
       <span className="canvas-scale" aria-live="polite">{Math.round(view.scale * 100)}%</span>
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
-      <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => setView(initial)}><LocateFixed /></Button>
+      <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => { setView(initial); showToast('视图已重置'); }}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放 · 快捷键 V / P(B) / M / S / E</p>
+    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / E</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 
