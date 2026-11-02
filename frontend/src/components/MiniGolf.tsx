@@ -134,7 +134,7 @@ export function MiniGolf({
 
                 const bounceSpeed = Math.hypot(velRef.current.x, velRef.current.y);
                 if (bounceSpeed > 50) {
-                  playBounce(bounceSpeed, stroke.color);
+                  playBounce(bounceSpeed, stroke.color, nx, ny);
                 }
               }
               break;
@@ -150,7 +150,7 @@ export function MiniGolf({
           // Scored!
           setScore(s => s + 1);
           setShots(0);
-          playTreasureFound();
+          playTreasureFound(currentHole.x, currentHole.y);
 
           // Pull into hole
           nextX = currentHole.x;
