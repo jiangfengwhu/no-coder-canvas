@@ -20,6 +20,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
+    "playwright": "^1.64.1",
     "radix-ui": "^1.8.1",
     "react": "^19.2.0",
     "react-cursor-cat": "^1.0.2",

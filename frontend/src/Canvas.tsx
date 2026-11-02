@@ -7,6 +7,7 @@ import { BouncyBall } from '@/components/BouncyBall';
 import { MiniGolf } from '@/components/MiniGolf';
 import { MusicBox } from '@/components/MusicBox';
 import { FruitNinja } from '@/components/FruitNinja';
+import { WildlifeTracker } from '@/components/WildlifeTracker';
 import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle, playBounce } from '@/lib/sound';
 
 type View = { x: number; y: number; scale: number };
@@ -68,6 +69,16 @@ export function Canvas() {
   const [shootVector, setShootVector] = useState({ x: 0, y: 0 });
 
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
+
+  const handleAnimalDiscover = (x: number, y: number, emoji: string) => {
+    setStamps(prev => {
+      const next = [...prev, { id: Math.random().toString(36).slice(2), x, y, emoji }];
+      if (next.length > 200) return next.slice(next.length - 200);
+      return next;
+    });
+    playTreasureFound();
+    showToast(`发现野生动物！ ${emoji}`);
+  };
 
   useEffect(() => {
     const handleVisualSound = (e: Event) => {
@@ -805,6 +816,7 @@ export function Canvas() {
             {h.emoji}
           </div>
         ))}
+        <WildlifeTracker view={view} onDiscover={handleAnimalDiscover} />
         {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
         {musicBoxActive && <MusicBox strokes={strokes} view={view} stamps={stamps} />}
         {tool === 'golf' && <MiniGolf strokes={strokes} view={view} shootSequence={shootSequence} shootVector={shootVector} />}
