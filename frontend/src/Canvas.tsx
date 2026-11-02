@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
+import { BouncyBall } from '@/components/BouncyBall';
 
 type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
@@ -43,6 +44,7 @@ export function Canvas() {
   const [tool, setTool] = useState<'pan' | 'pen'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [dragging, setDragging] = useState(false);
+  const [ballActive, setBallActive] = useState(false);
   const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; isDrag: boolean } | null>(null);
   const surface = useRef<HTMLDivElement>(null);
   function zoom(factor: number, x: number, y: number) {
@@ -213,6 +215,7 @@ export function Canvas() {
             <div className="treasure-label">发现宝藏！</div>
           </div>
         ))}
+        {ballActive && <BouncyBall strokes={strokes} view={view} />}
       </div>
     </div>
     <div className="canvas-controls" aria-label="画板视图控制">
@@ -221,6 +224,7 @@ export function Canvas() {
           {isVeryClose ? <Sparkles className="animate-pulse" /> : <Navigation style={{ transform: `rotate(${nearestAngle + Math.PI / 2}rad)` }} />}
         </div>
       )}
+      <Button variant={ballActive ? 'secondary' : 'ghost'} size="icon-sm" aria-label="弹力球游戏" onClick={() => setBallActive(prev => !prev)}><Sparkles /></Button>
       <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => setTool('pan')}><Hand /></Button>
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => setTool('pen')}><Pen /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
