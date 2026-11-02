@@ -1,3 +1,10 @@
+
+function dispatchVisual(color: string) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app-sound-visual', { detail: { color } }));
+  }
+}
+
 let audioCtx: AudioContext | null = null;
 
 function getContext() {
@@ -11,6 +18,7 @@ function getContext() {
 }
 
 export function playStampPlace() {
+  dispatchVisual('#22c55e');
   try {
     const ctx = getContext();
     const osc = ctx.createOscillator();
@@ -35,6 +43,7 @@ export function playStampPlace() {
 }
 
 export function playStampPop() {
+  dispatchVisual('#ef4444');
   try {
     const ctx = getContext();
     const osc = ctx.createOscillator();
@@ -59,6 +68,7 @@ export function playStampPop() {
 }
 
 export function playTreasureFound() {
+  dispatchVisual('#eab308');
   try {
     const ctx = getContext();
     const t = ctx.currentTime;
@@ -93,6 +103,7 @@ export function playTreasureFound() {
 }
 
 export function playMagicSparkle() {
+  dispatchVisual('#a855f7');
   try {
     const ctx = getContext();
     const t = ctx.currentTime;
@@ -128,6 +139,7 @@ const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#
 const PENTATONIC_SCALE = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
 
 export function playBounce(velocityMag: number, color?: string) {
+  dispatchVisual(color || '#3b82f6');
   try {
     const ctx = getContext();
     const osc = ctx.createOscillator();
