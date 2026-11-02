@@ -247,3 +247,13 @@
 @keyframes parrot-seed { 70%, 100% { transform: translate(-11px, -29px); opacity: 0; } }
 @media (max-width: 480px) { .parrot-companion { right: 12px; bottom: 72px; width: 128px; } .parrot-body, .parrot-art { width: 128px; height: 156px; } .parrot-bubble { bottom: 162px; } }
 @media (prefers-reduced-motion: reduce) { .parrot-companion *, .parrot-companion g { animation: none !important; transition: none !important; } }
+
+.bouncy-ball {
+  position: absolute;
+  font-size: 32px;
+  transform: translate(-50%, -50%);
+  user-select: none;
+  pointer-events: none;
+  z-index: 50;
+  will-change: transform;
+}
