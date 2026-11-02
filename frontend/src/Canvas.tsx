@@ -21,6 +21,7 @@ type Point = { x: number; y: number };
 type Stroke = { id: string; points: Point[]; color: string };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 type MagicParticle = { id: string; x: number; y: number; color: string; size: number };
+type VisualRing = { id: string; color: string };
 type SonarPing = { id: string; x: number; y: number };
 type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp'; delay: number; emoji: string };
 
@@ -64,6 +65,24 @@ export function Canvas() {
 
   const [shootSequence, setShootSequence] = useState(0);
   const [shootVector, setShootVector] = useState({ x: 0, y: 0 });
+
+  const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
+
+  useEffect(() => {
+    const handleVisualSound = (e: Event) => {
+      const customEvent = e as CustomEvent<{ color: string }>;
+      if (customEvent.detail && customEvent.detail.color) {
+        const id = Math.random().toString(36).slice(2);
+        setVisualRings(prev => [...prev, { id, color: customEvent.detail.color }]);
+        setTimeout(() => {
+          setVisualRings(prev => prev.filter(r => r.id !== id));
+        }, 800); // matches CSS animation duration
+      }
+    };
+    window.addEventListener('app-sound-visual', handleVisualSound);
+    return () => window.removeEventListener('app-sound-visual', handleVisualSound);
+  }, []);
+
 
   const lastHoverPos = useRef<{ x: number; y: number } | null>(null);
   const lastStrumTime = useRef<Record<string, number>>({});
@@ -657,11 +676,18 @@ export function Canvas() {
   const isVeryClose = nearestDist < 300;
 
   return <main className="canvas" aria-label="无限画板">
+
     {toast && (
       <div className="canvas-toast" aria-live="polite" role="status">
         {toast.message}
       </div>
     )}
+    <div className="canvas-visual-feedback">
+      {visualRings.map(ring => (
+        <div key={ring.id} className="visual-sound-wave" style={{ '--wave-color': ring.color } as React.CSSProperties} aria-hidden="true" />
+      ))}
+    </div>
+
     <div className={`canvas-edge-glow ${isVeryClose ? 'very-close' : isClose ? 'close' : ''}`} aria-hidden="true" />
     {isScanning && (
       <div className="lens-overlay" style={{ '--mouse-x': scanPos.x, '--mouse-y': scanPos.y } as React.CSSProperties} aria-hidden="true" />
