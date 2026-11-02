@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2 } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
 import { MiniGolf } from '@/components/MiniGolf';
 import { MusicBox } from '@/components/MusicBox';
 import { FruitNinja } from '@/components/FruitNinja';
+import { CanvasSnake } from '@/components/CanvasSnake';
 import { WildlifeTracker } from '@/components/WildlifeTracker';
 import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle, playBounce } from '@/lib/sound';
 
@@ -53,7 +54,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -111,6 +112,7 @@ export function Canvas() {
 
 
   const lastHoverPos = useRef<{ x: number; y: number } | null>(null);
+  const pointerWorldPosRef = useRef<{ x: number; y: number } | null>(null);
   const lastStrumTime = useRef<Record<string, number>>({});
 
   function showToast(message: string) {
@@ -239,7 +241,11 @@ export function Canvas() {
       setRipples(prev => prev.filter(r => r.id !== rippleId));
     }, 600);
 
-    if (tool === 'pen' || tool === 'kaleidoscope') {
+    if (tool === 'snake') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: true };
+      setDragging(true);
+      pointerWorldPosRef.current = { x: (event.clientX - view.x) / view.scale, y: (event.clientY - view.y) / view.scale };
+    } else if (tool === 'pen' || tool === 'kaleidoscope') {
       const worldX = (event.clientX - view.x) / view.scale;
       const worldY = (event.clientY - view.y) / view.scale;
       const color = STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)];
@@ -352,7 +358,11 @@ export function Canvas() {
     }
     lastHoverPos.current = { x: currentWorldX, y: currentWorldY };
 
-    if (tool === 'pen' || tool === 'kaleidoscope') {
+    if (tool === 'snake') {
+       if (pointerWorldPosRef) {
+          pointerWorldPosRef.current = { x: currentWorldX, y: currentWorldY };
+       }
+    } else if (tool === 'pen' || tool === 'kaleidoscope') {
       if (currentStroke) {
         const worldX = (event.clientX - view.x) / view.scale;
         const worldY = (event.clientY - view.y) / view.scale;
@@ -718,6 +728,9 @@ export function Canvas() {
     } else if (tool === 'ninja') {
       drag.current = null;
       setDragging(false);
+    } else if (tool === 'snake') {
+      drag.current = null;
+      setDragging(false);
     } else if (tool === 'confetti') {
       drag.current = null;
       setDragging(false);
@@ -885,6 +898,7 @@ export function Canvas() {
         {tool === 'golf' && <MiniGolf strokes={strokes} view={view} shootSequence={shootSequence} shootVector={shootVector} />}
       </div>
       {tool === 'ninja' && <FruitNinja view={view} dragRef={drag} />}
+      {tool === 'snake' && <CanvasSnake strokes={strokes} view={view} pointerWorldPosRef={pointerWorldPosRef} />}
 
       {/* Aiming line overlay for golf */}
       {tool === 'golf' && dragging && drag.current && drag.current.isDrag && (
@@ -919,6 +933,7 @@ export function Canvas() {
       <Button variant={tool === 'golf' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="高尔夫" onClick={() => { setTool('golf'); showToast('已切换至: 高尔夫'); }}><Flag /></Button>
       <Button variant={tool === 'magnet' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="磁铁" onClick={() => { setTool('magnet'); showToast('已切换至: 磁铁'); }}><Magnet /></Button>
       <Button variant={tool === 'ninja' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="切水果" onClick={() => { setTool('ninja'); showToast('已切换至: 切水果'); }}><Swords /></Button>
+      <Button variant={tool === 'snake' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="贪吃蛇" onClick={() => { setTool('snake'); showToast('已切换至: 贪吃蛇'); }}><Gamepad2 /></Button>
       <Button variant={tool === 'confetti' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="派对纸屑" onClick={() => { setTool('confetti'); showToast('已切换至: 派对纸屑'); }}><PartyPopper /></Button>
       <Button variant={tool === 'kaleidoscope' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="万花筒" onClick={() => { setTool('kaleidoscope'); showToast('已切换至: 万花筒'); }}><Snowflake /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
