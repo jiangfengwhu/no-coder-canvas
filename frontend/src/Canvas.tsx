@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
 import { MiniGolf } from '@/components/MiniGolf';
+import { MusicBox } from '@/components/MusicBox';
 import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle, playBounce } from '@/lib/sound';
 
 type View = { x: number; y: number; scale: number };
@@ -51,6 +52,7 @@ export function Canvas() {
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
   const [ballActive, setBallActive] = useState(false);
+  const [musicBoxActive, setMusicBoxActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanPos, setScanPos] = useState({ x: 0, y: 0 });
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
@@ -549,6 +551,7 @@ export function Canvas() {
           </div>
         ))}
         {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
+        {musicBoxActive && <MusicBox strokes={strokes} view={view} stamps={stamps} />}
         {tool === 'golf' && <MiniGolf strokes={strokes} view={view} shootSequence={shootSequence} shootVector={shootVector} />}
       </div>
 
@@ -575,6 +578,7 @@ export function Canvas() {
         </div>
       )}
       <Button variant={ballActive ? 'secondary' : 'ghost'} size="icon-sm" aria-label="弹力球游戏" onClick={() => { setBallActive(prev => { const next = !prev; showToast(next ? '弹力球游戏: 开启' : '弹力球游戏: 关闭'); return next; }); }}><Sparkles /></Button>
+      <Button variant={musicBoxActive ? 'secondary' : 'ghost'} size="icon-sm" aria-label="八音盒" onClick={() => { setMusicBoxActive(prev => { const next = !prev; showToast(next ? '八音盒: 开启' : '八音盒: 关闭'); return next; }); }}><Music /></Button>
       <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => { setTool('pan'); showToast('已切换至: 拖动'); }}><Hand /></Button>
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => { setTool('pen'); showToast('已切换至: 画笔'); }}><Pen /></Button>
       <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => { setTool('magic'); showToast('已切换至: 魔法棒'); }}><Wand2 /></Button>
