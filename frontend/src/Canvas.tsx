@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -21,6 +21,8 @@ type Point = { x: number; y: number };
 type Stroke = { id: string; points: Point[]; color: string };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 type MagicParticle = { id: string; x: number; y: number; color: string; size: number };
+type SonarPing = { id: string; x: number; y: number };
+type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp'; delay: number; emoji: string };
 
 function generateTreasures(): Treasure[] {
   const treasures: Treasure[] = [];
@@ -47,7 +49,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -55,6 +57,8 @@ export function Canvas() {
   const [musicBoxActive, setMusicBoxActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanPos, setScanPos] = useState({ x: 0, y: 0 });
+  const [sonarPings, setSonarPings] = useState<SonarPing[]>([]);
+  const [sonarHighlights, setSonarHighlights] = useState<SonarHighlight[]>([]);
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
 
   const [shootSequence, setShootSequence] = useState(0);
@@ -109,6 +113,7 @@ export function Canvas() {
       if (key === 's') { setTool('scan'); showToast('已切换至: 扫描仪'); }
       if (key === 'e') { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }
       if (key === 'g') { setTool('golf'); showToast('已切换至: 高尔夫'); }
+      if (key === 'r') { setTool('sonar'); showToast('已切换至: 声纳探测'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -157,6 +162,7 @@ export function Canvas() {
       'magic': 'var(--purple-500, #a855f7)',
       'stamp-brush': 'var(--green-500, #22c55e)',
       'scan': 'var(--cyan-500, #06b6d4)',
+      'sonar': 'var(--cyan-400, #22d3ee)',
       'pen': 'var(--blue-500, #3b82f6)',
       'pan': 'var(--primary)',
     };
@@ -181,6 +187,9 @@ export function Canvas() {
       setIsScanning(true);
       setScanPos({ x: event.clientX, y: event.clientY });
       playMagicSparkle();
+    } else if (tool === 'sonar') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
     } else if (tool === 'stamp-brush') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
 
@@ -337,6 +346,12 @@ export function Canvas() {
         drag.current.isDrag = true;
       }
       drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+    } else if (tool === 'sonar') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
     } else {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
@@ -438,6 +453,66 @@ export function Canvas() {
         const powerMultiplier = 8;
         setShootVector({ x: dx * powerMultiplier / view.scale, y: dy * powerMultiplier / view.scale });
         setShootSequence(s => s + 1);
+      }
+      drag.current = null;
+      setDragging(false);
+    } else if (tool === 'sonar' && drag.current?.id === event.pointerId) {
+      if (!drag.current.isDrag) {
+        const worldX = (event.clientX - view.x) / view.scale;
+        const worldY = (event.clientY - view.y) / view.scale;
+        const pingId = Math.random().toString(36).slice(2);
+
+        setSonarPings(prev => [...prev, { id: pingId, x: worldX, y: worldY }]);
+        playMagicSparkle();
+
+        const speed = 2000; // pixels per second (matches CSS animation scale)
+        const maxDist = 4000;
+        const newHighlights: SonarHighlight[] = [];
+
+        let foundCount = 0;
+
+        treasures.forEach(t => {
+          if (!t.discovered) {
+            const dist = Math.hypot(t.x - worldX, t.y - worldY);
+            if (dist < maxDist) {
+              foundCount++;
+              newHighlights.push({
+                id: Math.random().toString(36).slice(2),
+                x: t.x, y: t.y, type: 'treasure',
+                delay: dist / speed,
+                emoji: t.emoji
+              });
+            }
+          }
+        });
+
+        stamps.forEach(s => {
+          const dist = Math.hypot(s.x - worldX, s.y - worldY);
+          if (dist < maxDist) {
+            newHighlights.push({
+              id: Math.random().toString(36).slice(2),
+              x: s.x, y: s.y, type: 'stamp',
+              delay: dist / speed,
+              emoji: s.emoji
+            });
+          }
+        });
+
+        if (newHighlights.length > 0) {
+          setSonarHighlights(prev => [...prev, ...newHighlights]);
+        }
+
+        if (foundCount > 0) {
+          showToast(`声纳探测到 ${foundCount} 个隐藏宝藏！`);
+        } else {
+          showToast(`未探测到附近有宝藏`);
+        }
+
+        // Cleanup after animation completes (max radius 8000px at 2000px/s + 1s buffer = 5s)
+        setTimeout(() => {
+          setSonarPings(prev => prev.filter(p => p.id !== pingId));
+          setSonarHighlights(prev => prev.filter(h => !newHighlights.find(nh => nh.id === h.id)));
+        }, 5000);
       }
       drag.current = null;
       setDragging(false);
@@ -550,6 +625,14 @@ export function Canvas() {
              <Sparkles size={p.size} />
           </div>
         ))}
+        {sonarPings.map(ping => (
+          <div key={ping.id} className="sonar-ring" style={{ left: ping.x, top: ping.y }} aria-hidden="true" />
+        ))}
+        {sonarHighlights.map(h => (
+          <div key={h.id} className={`sonar-highlight ${h.type}`} style={{ left: h.x, top: h.y, '--delay': `${h.delay}s` } as React.CSSProperties} aria-hidden="true">
+            {h.emoji}
+          </div>
+        ))}
         {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
         {musicBoxActive && <MusicBox strokes={strokes} view={view} stamps={stamps} />}
         {tool === 'golf' && <MiniGolf strokes={strokes} view={view} shootSequence={shootSequence} shootVector={shootVector} />}
@@ -583,6 +666,7 @@ export function Canvas() {
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => { setTool('pen'); showToast('已切换至: 画笔'); }}><Pen /></Button>
       <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => { setTool('magic'); showToast('已切换至: 魔法棒'); }}><Wand2 /></Button>
       <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => { setTool('scan'); showToast('已切换至: 扫描仪'); }}><Search /></Button>
+      <Button variant={tool === 'sonar' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="声纳探测" onClick={() => { setTool('sonar'); showToast('已切换至: 声纳探测'); }}><Radar /></Button>
       <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }}><Smile /></Button>
       <Button variant={tool === 'golf' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="高尔夫" onClick={() => { setTool('golf'); showToast('已切换至: 高尔夫'); }}><Flag /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
@@ -593,7 +677,7 @@ export function Canvas() {
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => { setView(initial); showToast('视图已重置'); }}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / E / G</p>
+    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 
