@@ -24,6 +24,7 @@ type Stroke = { id: string; points: Point[]; color: string };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 type MagicParticle = { id: string; x: number; y: number; color: string; size: number };
 type VisualRing = { id: string; color: string };
+type SoundCaption = { id: string; color: string; text: string; x: number; y: number };
 type SonarPing = { id: string; x: number; y: number };
 type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp'; delay: number; emoji: string };
 
@@ -69,6 +70,7 @@ export function Canvas() {
   const [shootVector, setShootVector] = useState({ x: 0, y: 0 });
 
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
+  const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
 
   const handleAnimalDiscover = (x: number, y: number, emoji: string) => {
     setStamps(prev => {
@@ -82,10 +84,22 @@ export function Canvas() {
 
   useEffect(() => {
     const handleVisualSound = (e: Event) => {
-      const customEvent = e as CustomEvent<{ color: string }>;
+      const customEvent = e as CustomEvent<{ color: string; text?: string }>;
       if (customEvent.detail && customEvent.detail.color) {
         const id = Math.random().toString(36).slice(2);
         setVisualRings(prev => [...prev, { id, color: customEvent.detail.color }]);
+
+        if (customEvent.detail.text) {
+          // Randomize screen position slightly for a comic-book style feel
+          const x = 10 + Math.random() * 80; // 10% to 90% of screen width
+          const y = 10 + Math.random() * 80; // 10% to 90% of screen height
+          setSoundCaptions(prev => [...prev, { id, color: customEvent.detail.color, text: customEvent.detail.text!, x, y }]);
+
+          setTimeout(() => {
+            setSoundCaptions(prev => prev.filter(c => c.id !== id));
+          }, 1500); // Wait for float-up animation to complete
+        }
+
         setTimeout(() => {
           setVisualRings(prev => prev.filter(r => r.id !== id));
         }, 800); // matches CSS animation duration
@@ -771,6 +785,16 @@ export function Canvas() {
     <div className="canvas-visual-feedback">
       {visualRings.map(ring => (
         <div key={ring.id} className="visual-sound-wave" style={{ '--wave-color': ring.color } as React.CSSProperties} aria-hidden="true" />
+      ))}
+      {soundCaptions.map(caption => (
+        <div key={caption.id} className="sound-caption" style={{
+          left: `${caption.x}%`,
+          top: `${caption.y}%`,
+          color: caption.color,
+          textShadow: `0 2px 4px rgba(0,0,0,0.5), 0 0 10px ${caption.color}`
+        }} aria-hidden="true">
+          {caption.text}
+        </div>
       ))}
     </div>
 
