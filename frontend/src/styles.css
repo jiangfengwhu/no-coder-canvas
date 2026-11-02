@@ -123,6 +123,63 @@
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
 }
 
+.treasure-stamp .stamp-inner {
+  font-size: 64px;
+  filter: drop-shadow(0 0 16px rgba(255, 215, 0, 0.8));
+  animation: stampPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.treasure-label {
+  position: absolute;
+  top: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  color: var(--primary);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 1px solid var(--border);
+  animation: stampPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  animation-delay: 0.2s;
+  opacity: 0;
+}
+
+.treasure-compass {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  margin-right: 8px;
+  transition: all 0.3s ease;
+}
+.treasure-compass svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+.treasure-compass.close {
+  background: oklch(0.9 0.1 80);
+  color: oklch(0.5 0.15 40);
+  box-shadow: 0 0 8px oklch(0.9 0.1 80 / 0.5);
+}
+.dark .treasure-compass.close {
+  background: oklch(0.3 0.1 80);
+  color: oklch(0.8 0.15 40);
+}
+.treasure-compass.very-close {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 12px var(--primary);
+}
+
 .parrot-companion { position: fixed; right: 28px; bottom: 80px; z-index: 15; width: 156px; color: var(--foreground); }
 .parrot-body { display: block; width: 156px; height: 190px; padding: 0; border-radius: 48%; background: transparent !important; }
 .parrot-art { display: block; width: 156px; height: 190px; overflow: visible; }
