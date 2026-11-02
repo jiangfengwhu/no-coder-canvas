@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 
@@ -10,8 +10,11 @@ const clamp = (n: number) => Math.max(.35, Math.min(2.5, n));
 
 const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋'];
 const TREASURE_EMOJIS = ['💎', '👑', '🎁', '🏆', '🔮', '💰', '🗝️'];
+const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
 
 type Treasure = { id: string; x: number; y: number; emoji: string; discovered: boolean };
+type Point = { x: number; y: number };
+type Stroke = { id: string; points: Point[]; color: string };
 
 function generateTreasures(): Treasure[] {
   const treasures: Treasure[] = [];
@@ -34,6 +37,9 @@ function generateTreasures(): Treasure[] {
 export function Canvas() {
   const [view, setView] = useState(initial);
   const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
+  const [tool, setTool] = useState<'pan' | 'pen'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; isDrag: boolean } | null>(null);
@@ -61,25 +67,56 @@ export function Canvas() {
     element.addEventListener('wheel', wheel, { passive: false });
     return () => element.removeEventListener('wheel', wheel);
   }, []);
+
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.key.toLowerCase() === 'v') setTool('pan');
+      if (event.key.toLowerCase() === 'p' || event.key.toLowerCase() === 'b') setTool('pen');
+    };
+    window.addEventListener('keydown', keydown);
+    return () => window.removeEventListener('keydown', keydown);
+  }, []);
   function down(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
-    setDragging(true);
+
+    if (tool === 'pen') {
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      const color = STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)];
+      setCurrentStroke({ id: Math.random().toString(36).slice(2), points: [{ x: worldX, y: worldY }], color });
+    } else {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+    }
   }
   function move(event: PointerEvent<HTMLDivElement>) {
-    if (!drag.current || drag.current.id !== event.pointerId) return;
-    const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
+    if (tool === 'pen') {
+      if (currentStroke) {
+        const worldX = (event.clientX - view.x) / view.scale;
+        const worldY = (event.clientY - view.y) / view.scale;
+        setCurrentStroke(prev => prev ? { ...prev, points: [...prev.points, { x: worldX, y: worldY }] } : null);
+      }
+    } else {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
 
-    if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
-      drag.current.isDrag = true;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+      setView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
     }
-
-    drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
-    setView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
   }
   function end(event: PointerEvent<HTMLDivElement>) {
-    if (drag.current?.id === event.pointerId) {
+    if (tool === 'pen') {
+      if (currentStroke) {
+        setStrokes(prev => [...prev, currentStroke]);
+        setCurrentStroke(null);
+      }
+    } else if (drag.current?.id === event.pointerId) {
       if (!drag.current.isDrag) {
         // Click action
         const worldX = (event.clientX - view.x) / view.scale;
@@ -145,6 +182,14 @@ export function Canvas() {
   return <main className="canvas" aria-label="无限画板">
     <div ref={surface} className={`canvas-surface ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
       <div className="canvas-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} aria-hidden="true">
+        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
+          {strokes.map(stroke => (
+            <polyline key={stroke.id} points={stroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+          ))}
+          {currentStroke && (
+            <polyline points={currentStroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={currentStroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+          )}
+        </svg>
         {stamps.map(stamp => (
           <div key={stamp.id} className="stamp" style={{ left: stamp.x, top: stamp.y }}>
             <div className="stamp-inner">{stamp.emoji}</div>
@@ -164,15 +209,17 @@ export function Canvas() {
           {isVeryClose ? <Sparkles className="animate-pulse" /> : <Navigation style={{ transform: `rotate(${nearestAngle + Math.PI / 2}rad)` }} />}
         </div>
       )}
-      {stamps.length > 0 && (
-        <Button variant="ghost" size="icon-sm" aria-label="清除图章" onClick={() => setStamps([])}><Eraser /></Button>
+      <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => setTool('pan')}><Hand /></Button>
+      <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => setTool('pen')}><Pen /></Button>
+      {(stamps.length > 0 || strokes.length > 0) && (
+        <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); }}><Eraser /></Button>
       )}
       <Button variant="ghost" size="icon-sm" aria-label="缩小画板" onClick={() => zoom(1 / 1.2, innerWidth / 2, innerHeight / 2)}><Minus /></Button>
       <span className="canvas-scale" aria-live="polite">{Math.round(view.scale * 100)}%</span>
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => setView(initial)}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放</p>
+    <p className="canvas-hint">拖动画板移动 · Ctrl + 滚轮缩放 · 快捷键 V / P(B)</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 
