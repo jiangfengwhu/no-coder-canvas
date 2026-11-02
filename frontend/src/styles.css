@@ -403,3 +403,34 @@
   20% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
   100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
 }
+
+.magnet-field {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  border: 2px dashed rgba(239, 68, 68, 0.4); /* red base */
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.1) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: magnet-pulse 2s infinite ease-in-out;
+  z-index: 10;
+}
+
+.magnet-field.repel {
+  border: 2px dashed rgba(59, 130, 246, 0.4); /* blue base */
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+  animation: magnet-pulse-repel 2s infinite ease-in-out;
+}
+
+@keyframes magnet-pulse {
+  0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.8; }
+  50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.4; }
+  100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.8; }
+}
+
+@keyframes magnet-pulse-repel {
+  0% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.4; }
+  50% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.4; }
+}

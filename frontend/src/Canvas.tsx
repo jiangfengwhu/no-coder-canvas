@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -49,7 +49,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet'>('pan');
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -59,6 +59,7 @@ export function Canvas() {
   const [scanPos, setScanPos] = useState({ x: 0, y: 0 });
   const [sonarPings, setSonarPings] = useState<SonarPing[]>([]);
   const [sonarHighlights, setSonarHighlights] = useState<SonarHighlight[]>([]);
+  const [isRepelling, setIsRepelling] = useState(false);
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
 
   const [shootSequence, setShootSequence] = useState(0);
@@ -75,6 +76,21 @@ export function Canvas() {
     }, 2500);
   }
   const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; isDrag: boolean } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setIsRepelling(true);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setIsRepelling(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
   const surface = useRef<HTMLDivElement>(null);
   function zoom(factor: number, x: number, y: number) {
     setView(v => {
@@ -114,6 +130,7 @@ export function Canvas() {
       if (key === 'e') { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }
       if (key === 'g') { setTool('golf'); showToast('已切换至: 高尔夫'); }
       if (key === 'r') { setTool('sonar'); showToast('已切换至: 声纳探测'); }
+      if (key === 'a') { setTool('magnet'); showToast('已切换至: 磁铁'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -204,6 +221,9 @@ export function Canvas() {
       playStampPlace();
       setDragging(true);
     } else if (tool === 'golf') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+    } else if (tool === 'magnet') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
     } else {
@@ -352,6 +372,69 @@ export function Canvas() {
         drag.current.isDrag = true;
       }
       drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+    } else if (tool === 'magnet') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+
+      const dx = event.clientX - drag.current.x;
+      const dy = event.clientY - drag.current.y;
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+
+      const repelMultiplier = isRepelling ? -1 : 1;
+      const forceMultiplier = 0.1 * repelMultiplier;
+      const radius = 250; // pixels
+
+      setStamps(prev => prev.map(stamp => {
+        const sx = stamp.x * view.scale + view.x;
+        const sy = stamp.y * view.scale + view.y;
+        const dist = Math.hypot(event.clientX - sx, event.clientY - sy);
+        if (dist < radius) {
+          const moveDx = (event.clientX - sx) * forceMultiplier;
+          const moveDy = (event.clientY - sy) * forceMultiplier;
+          return { ...stamp, x: stamp.x + moveDx / view.scale, y: stamp.y + moveDy / view.scale };
+        }
+        return stamp;
+      }));
+
+      setTreasures(prev => prev.map(treasure => {
+        if (!treasure.discovered) return treasure;
+        const tx = treasure.x * view.scale + view.x;
+        const ty = treasure.y * view.scale + view.y;
+        const dist = Math.hypot(event.clientX - tx, event.clientY - ty);
+        if (dist < radius) {
+          const moveDx = (event.clientX - tx) * forceMultiplier;
+          const moveDy = (event.clientY - ty) * forceMultiplier;
+          return { ...treasure, x: treasure.x + moveDx / view.scale, y: treasure.y + moveDy / view.scale };
+        }
+        return treasure;
+      }));
+
+      setStrokes(prev => prev.map(stroke => {
+        // Find if stroke is within radius
+        let inRadius = false;
+        let strokeCenterX = 0;
+        let strokeCenterY = 0;
+
+        for (const p of stroke.points) {
+          const px = p.x * view.scale + view.x;
+          const py = p.y * view.scale + view.y;
+          if (Math.hypot(event.clientX - px, event.clientY - py) < radius) {
+            inRadius = true;
+            strokeCenterX = px;
+            strokeCenterY = py;
+            break;
+          }
+        }
+
+        if (inRadius) {
+          const moveDx = (event.clientX - strokeCenterX) * forceMultiplier / view.scale;
+          const moveDy = (event.clientY - strokeCenterY) * forceMultiplier / view.scale;
+          return { ...stroke, points: stroke.points.map(p => ({ x: p.x + moveDx, y: p.y + moveDy })) };
+        }
+        return stroke;
+      }));
     } else {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
@@ -516,6 +599,9 @@ export function Canvas() {
       }
       drag.current = null;
       setDragging(false);
+    } else if (tool === 'magnet') {
+      drag.current = null;
+      setDragging(false);
     }
   }
 
@@ -579,6 +665,13 @@ export function Canvas() {
     <div className={`canvas-edge-glow ${isVeryClose ? 'very-close' : isClose ? 'close' : ''}`} aria-hidden="true" />
     {isScanning && (
       <div className="lens-overlay" style={{ '--mouse-x': scanPos.x, '--mouse-y': scanPos.y } as React.CSSProperties} aria-hidden="true" />
+    )}
+    {tool === 'magnet' && drag.current && dragging && (
+      <div
+        className={`magnet-field ${isRepelling ? 'repel' : ''}`}
+        style={{ left: drag.current.x, top: drag.current.y }}
+        aria-hidden="true"
+      />
     )}
     <div ref={surface} className={`canvas-surface tool-${tool} ${dragging ? 'is-dragging' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end} onDoubleClick={doubleClick} style={{ backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`, backgroundPosition: `${view.x}px ${view.y}px` }}>
       {ripples.map(ripple => (
@@ -669,6 +762,7 @@ export function Canvas() {
       <Button variant={tool === 'sonar' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="声纳探测" onClick={() => { setTool('sonar'); showToast('已切换至: 声纳探测'); }}><Radar /></Button>
       <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }}><Smile /></Button>
       <Button variant={tool === 'golf' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="高尔夫" onClick={() => { setTool('golf'); showToast('已切换至: 高尔夫'); }}><Flag /></Button>
+      <Button variant={tool === 'magnet' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="磁铁" onClick={() => { setTool('magnet'); showToast('已切换至: 磁铁'); }}><Magnet /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
@@ -677,7 +771,7 @@ export function Canvas() {
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => { setView(initial); showToast('视图已重置'); }}><LocateFixed /></Button>
     </div>
-    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G</p>
+    <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G / A</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
 
