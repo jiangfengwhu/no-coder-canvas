@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Aperture, Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind } from 'lucide-react';
+import { Footprints, Aperture, Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -60,8 +60,43 @@ type SonarPing = { id: string; x: number; y: number };
 type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp' | 'fossil'; delay: number; emoji: string };
 type FishingPond = { id: string; x: number; y: number; active: boolean };
 type PaperPlane = { id: string; x: number; y: number; vx: number; vy: number; life: number; angle: number };
+type AnimalTrail = { id: string; x: number; y: number; emoji: string; revealed: boolean; isEnd: boolean; angle: number; };
 
 const FISH_EMOJIS = ['🐟', '🐠', '🐡', '🐙', '🦑', '🦐', '🦞', '🦀', '🦈', '🐬', '🐳', '🐢'];
+
+function generateTrails(): AnimalTrail[] {
+  const trails: AnimalTrail[] = [];
+  const ANIMALS = ['🦄', '🦖', '🦚', '🦥', '🦩', '🦝', '🦡', '🦦', '🦢', '🐿️'];
+  for (let i = 0; i < 30; i++) {
+    const angleStart = Math.random() * 2 * Math.PI;
+    const radiusStart = 1000 + Math.random() * 7000;
+    let startX = Math.cos(angleStart) * radiusStart;
+    let startY = Math.sin(angleStart) * radiusStart;
+
+    let currentAngle = Math.random() * 2 * Math.PI;
+    const steps = 10 + Math.floor(Math.random() * 8);
+    const stepDist = 80;
+
+    for (let j = 0; j < steps; j++) {
+      currentAngle += (Math.random() - 0.5) * 0.8;
+      startX += Math.cos(currentAngle) * stepDist;
+      startY += Math.sin(currentAngle) * stepDist;
+
+      const isEnd = j === steps - 1;
+      trails.push({
+        id: `trail-${i}-${j}`,
+        x: startX,
+        y: startY,
+        emoji: isEnd ? ANIMALS[Math.floor(Math.random() * ANIMALS.length)] : '🐾',
+        revealed: false,
+        isEnd,
+        angle: currentAngle
+      });
+    }
+  }
+  return trails;
+}
+
 
 function generateTreasures(): Treasure[] {
   const treasures: Treasure[] = [];
@@ -192,7 +227,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
 
@@ -200,6 +235,9 @@ export function Canvas() {
   const portalsRef = useRef<{id: string, x: number, y: number, color: string}[]>([]);
   useEffect(() => { portalsRef.current = portals; }, [portals]);
 
+  const [trails, setTrails] = useState<AnimalTrail[]>(generateTrails);
+  const trailsRef = useRef<AnimalTrail[]>([]);
+  useEffect(() => { trailsRef.current = trails; }, [trails]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
   const [ghosts, setGhosts] = useState<Ghost[]>(generateGhosts);
@@ -747,6 +785,7 @@ export function Canvas() {
       if (key === '[') { setTool('ufo'); showToast('已切换至: UFO牵引'); }
       if (key === 'z') { setTool('wind'); showToast('已切换至: 吹风'); }
       if (key === '\\') { setTool('portal'); showToast('已切换至: 传送门'); }
+      if (key === ']') { setTool('tracker'); showToast('已切换至: 追踪动物'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -1002,6 +1041,9 @@ export function Canvas() {
       setDragging(true);
       const ufoId = Math.random().toString(36).slice(2);
       setActiveUfos(prev => [...prev, { id: ufoId, x: event.clientX, y: event.clientY }]);
+    } else if (tool === 'tracker') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
     } else if (tool === 'wind') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -1425,6 +1467,41 @@ export function Canvas() {
       if (drag.current.isDrag) {
         setView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
       }
+        } else if (tool === 'tracker') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+
+      const dx = event.clientX - drag.current.x;
+      const dy = event.clientY - drag.current.y;
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+
+
+      let changedAny = false;
+      const nextTrails = trailsRef.current.map(t => {
+         if (!t.revealed) {
+            const dist = Math.hypot(t.x - worldX, t.y - worldY);
+            if (dist < 60) {
+               changedAny = true;
+               return { ...t, revealed: true };
+            }
+         }
+         return t;
+      });
+
+      if (changedAny) {
+         playMagicSparkle();
+         setTrails(nextTrails);
+      }
+
+
+      if (drag.current.isDrag) {
+        setView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
+      }
     } else if (tool === 'wind') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
@@ -1523,6 +1600,53 @@ export function Canvas() {
         // Click action
         const worldX = (event.clientX - view.x) / view.scale;
         const worldY = (event.clientY - view.y) / view.scale;
+        // Tracker logic
+        if (tool === 'tracker') {
+            let foundTrailIndex = -1;
+            for (let i = 0; i < trails.length; i++) {
+                if (trails[i].revealed && trails[i].isEnd) {
+                    const dist = Math.hypot(trails[i].x - worldX, trails[i].y - worldY);
+                    if (dist < 40) {
+                        foundTrailIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (foundTrailIndex !== -1) {
+                const trail = trails[foundTrailIndex];
+                setTrails(prev => prev.filter((_, idx) => idx !== foundTrailIndex));
+                setStamps(prev => {
+                    const next = [...prev, { id: Math.random().toString(36).slice(2), x: trail.x, y: trail.y, emoji: trail.emoji }];
+                    if (next.length > 200) return next.slice(next.length - 200);
+                    return next;
+                });
+                playTreasureFound();
+                showToast(`发现了珍稀动物！ ${trail.emoji}`);
+
+                const newParticles: Particle[] = [];
+                for (let i = 0; i < 30; i++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const distance = 50 + Math.random() * 150;
+                  newParticles.push({
+                    id: Math.random().toString(36).slice(2),
+                    x: trail.x,
+                    y: trail.y,
+                    color: ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'][Math.floor(Math.random() * 5)],
+                    tx: `${Math.cos(angle) * distance}px`,
+                    ty: `${Math.sin(angle) * distance}px`,
+                  });
+                }
+                setParticles(prev => [...prev.slice(-100), ...newParticles]);
+                setTimeout(() => {
+                  setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+                }, 600);
+
+                drag.current = null;
+                setDragging(false);
+                return;
+            }
+        }
+
 
         let foundIndex = -1;
         for (let i = 0; i < treasures.length; i++) {
@@ -1714,6 +1838,9 @@ export function Canvas() {
       setDragging(false);
     } else if (tool === 'ufo') {
       setActiveUfos([]);
+      drag.current = null;
+      setDragging(false);
+    } else if (tool === 'tracker') {
       drag.current = null;
       setDragging(false);
     } else if (tool === 'wind') {
@@ -3049,6 +3176,22 @@ export function Canvas() {
         {sonarPings.map(ping => (
           <div key={ping.id} className="sonar-ring" style={{ left: ping.x, top: ping.y }} aria-hidden="true" />
         ))}
+
+        {trails.map(t => (
+          <div key={t.id} className="animal-trail-point" style={{
+            left: t.x, top: t.y,
+            opacity: t.revealed ? 1 : 0,
+            transform: `translate(-50%, -50%) rotate(${t.angle}rad)`,
+            position: 'absolute',
+            fontSize: '24px',
+            pointerEvents: 'none',
+            transition: 'opacity 0.5s ease-in-out',
+            filter: t.isEnd && t.revealed ? 'drop-shadow(0 0 10px rgba(255, 215, 0, 0.8))' : 'none'
+          }} aria-hidden="true">
+            {t.emoji}
+          </div>
+        ))}
+
         {sonarHighlights.map(h => (
           <div key={h.id} className={`sonar-highlight ${h.type}`} style={{ left: h.x, top: h.y, '--delay': `${h.delay}s` } as React.CSSProperties} aria-hidden="true">
             {h.emoji}
@@ -3148,6 +3291,7 @@ export function Canvas() {
       <Button variant={tool === 'wind' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="吹风" onClick={() => { setTool('wind'); showToast('已切换至: 吹风'); }}><Wind /></Button>
 
       <Button variant={tool === 'portal' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="传送门" onClick={() => { setTool('portal'); showToast('已切换至: 传送门'); }}><Aperture /></Button>
+      <Button variant={tool === 'tracker' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="追踪动物" onClick={() => { setTool('tracker'); showToast('已切换至: 追踪动物'); }}><Footprints /></Button>
 
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
