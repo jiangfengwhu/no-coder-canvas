@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -49,6 +49,7 @@ type SoundCaption = { id: string; color: string; text: string; x: number; y: num
 type SonarPing = { id: string; x: number; y: number };
 type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp' | 'fossil'; delay: number; emoji: string };
 type FishingPond = { id: string; x: number; y: number; active: boolean };
+type PaperPlane = { id: string; x: number; y: number; vx: number; vy: number; life: number; angle: number };
 
 const FISH_EMOJIS = ['🐟', '🐠', '🐡', '🐙', '🦑', '🦐', '🦞', '🦀', '🦈', '🐬', '🐳', '🐢'];
 
@@ -131,7 +132,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane'>('pan');
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
@@ -186,6 +187,10 @@ export function Canvas() {
   const [shootSequence, setShootSequence] = useState(0);
   const [shootVector, setShootVector] = useState({ x: 0, y: 0 });
 
+  const [activePlanes, setActivePlanes] = useState<PaperPlane[]>([]);
+  const [planeAiming, setPlaneAiming] = useState<{ startX: number, startY: number, currentX: number, currentY: number } | null>(null);
+  const activePlanesRef = useRef<PaperPlane[]>([]);
+
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
   const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
   const [showCaptionsLog, setShowCaptionsLog] = useState(false);
@@ -210,6 +215,10 @@ export function Canvas() {
   useEffect(() => {
     strokesRef.current = strokes;
   }, [strokes]);
+
+  useEffect(() => {
+    activePlanesRef.current = activePlanes;
+  }, [activePlanes]);
 
 
   const calculateLaserPath = (startX: number, startY: number, dirX: number, dirY: number) => {
@@ -529,6 +538,7 @@ export function Canvas() {
       if (key === 'h') { setTool('blackhole'); showToast('已切换至: 黑洞'); }
       if (key === 'i') { setTool('vine'); showToast('已切换至: 藤蔓'); }
       if (key === 'y') { setTool('map'); showToast('已切换至: 藏宝图'); }
+      if (key === 'q') { setTool('plane'); showToast('已切换至: 纸飞机'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -698,6 +708,12 @@ export function Canvas() {
          setFishingState({ active: false, pondId: null, bobberX: 0, bobberY: 0, status: 'idle' });
       }
 
+    } else if (tool === 'plane') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      setPlaneAiming({ startX: worldX, startY: worldY, currentX: worldX, currentY: worldY });
+      setDragging(true);
     } else if (tool === 'bubble') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       const worldX = (event.clientX - view.x) / view.scale;
@@ -1074,6 +1090,15 @@ export function Canvas() {
       const worldX = (event.clientX - view.x) / view.scale;
       const worldY = (event.clientY - view.y) / view.scale;
       setLaserAiming(prev => prev ? { ...prev, currentX: worldX, currentY: worldY } : null);
+    } else if (tool === 'plane') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      setPlaneAiming(prev => prev ? { ...prev, currentX: worldX, currentY: worldY } : null);
     } else if (tool === 'bubble') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
 
@@ -1470,6 +1495,32 @@ export function Canvas() {
       drag.current = null;
       setDragging(false);
       setLaserAiming(null);
+    } else if (tool === 'plane') {
+      if (planeAiming) {
+        const dx = planeAiming.startX - planeAiming.currentX;
+        const dy = planeAiming.startY - planeAiming.currentY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > 10) {
+           const vx = dx * 3; // Throw power multiplier
+           const vy = dy * 3;
+           const angle = Math.atan2(vy, vx);
+
+           const newPlane: PaperPlane = {
+              id: Math.random().toString(36).slice(2),
+              x: planeAiming.startX,
+              y: planeAiming.startY,
+              vx,
+              vy,
+              life: 3 + Math.random() * 2, // seconds
+              angle
+           };
+           setActivePlanes(prev => [...prev, newPlane]);
+        }
+      }
+      drag.current = null;
+      setDragging(false);
+      setPlaneAiming(null);
     } else if (tool === 'bubble') {
       setBubbles(prev => prev.map(b => {
         if (!b.floating) return { ...b, floating: true };
@@ -1508,6 +1559,114 @@ export function Canvas() {
       setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
     }, 600);
   }
+
+  // Paper Plane physics logic (animation loop)
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastTime = performance.now();
+
+    const updatePlanes = (time: number) => {
+      const dt = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (dt > 0.1) {
+         animationFrameId = requestAnimationFrame(updatePlanes);
+         return;
+      }
+
+      const currentPlanes = activePlanesRef.current;
+      if (currentPlanes.length === 0) {
+         animationFrameId = requestAnimationFrame(updatePlanes);
+         return;
+      }
+
+      let planesChanged = false;
+      let stampsChanged = false;
+      const deadPlaneIds = new Set<string>();
+      const newStamps: {id: string, x: number, y: number, emoji: string}[] = [];
+      const newParticles: Particle[] = [];
+      const poppedStampIds = new Set<string>();
+
+      const nextPlanes = currentPlanes.map(plane => {
+         planesChanged = true;
+
+         const speed = Math.hypot(plane.vx, plane.vy);
+         const drag = 0.5 * dt;
+         let newVx = plane.vx * (1 - drag);
+         let newVy = plane.vy * (1 - drag);
+
+         // Wobble effect based on life
+         const wobble = Math.sin(time / 200) * 50 * dt;
+         const perpX = -plane.vy / (speed || 1);
+         const perpY = plane.vx / (speed || 1);
+
+         newVx += perpX * wobble;
+         newVy += perpY * wobble;
+
+         const newX = plane.x + newVx * dt;
+         const newY = plane.y + newVy * dt;
+         const newLife = plane.life - dt;
+         const newAngle = Math.atan2(newVy, newVx);
+
+         if (Math.random() < 0.2) {
+             const angle = Math.random() * Math.PI * 2;
+             const distance = 5 + Math.random() * 10;
+             newParticles.push({
+               id: Math.random().toString(36).slice(2),
+               x: newX, y: newY,
+               color: '#d1d5db',
+               tx: `${Math.cos(angle) * distance}px`, ty: `${Math.sin(angle) * distance}px`
+             });
+         }
+
+         if (newLife <= 0 || speed < 20) {
+            deadPlaneIds.add(plane.id);
+            newStamps.push({ id: Math.random().toString(36).slice(2), x: newX, y: newY, emoji: '✈️' });
+            return plane;
+         }
+
+         // Collision with balloons
+         for (const s of stampsRef.current) {
+            if (s.emoji === '🎈' && !poppedStampIds.has(s.id)) {
+               if (Math.hypot(s.x - newX, s.y - newY) < 30) {
+                  poppedStampIds.add(s.id);
+               }
+            }
+         }
+
+         return { ...plane, x: newX, y: newY, vx: newVx, vy: newVy, life: newLife, angle: newAngle };
+      });
+
+      if (poppedStampIds.size > 0) {
+         poppedStampIds.forEach(id => {
+            const s = stampsRef.current.find(ss => ss.id === id);
+            if (s) popStamp(s.x, s.y, s.id);
+         });
+      }
+
+      if (deadPlaneIds.size > 0) {
+         if (newStamps.length > 0) {
+            setStamps(prev => [...prev, ...newStamps]);
+         }
+      }
+
+      if (newParticles.length > 0) {
+         setParticles(prev => [...prev.slice(-150), ...newParticles]);
+         setTimeout(() => {
+            setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+         }, 600);
+      }
+
+      if (planesChanged || deadPlaneIds.size > 0) {
+         setActivePlanes(nextPlanes.filter(p => !deadPlaneIds.has(p.id)));
+      }
+
+      animationFrameId = requestAnimationFrame(updatePlanes);
+    };
+
+    animationFrameId = requestAnimationFrame(updatePlanes);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
 
   // Bubble physics logic (animation loop)
   useEffect(() => {
@@ -1958,6 +2117,9 @@ export function Canvas() {
           {tool === 'laser' && laserAiming && (
              <line className="laser-aiming-line" x1={laserAiming.startX} y1={laserAiming.startY} x2={laserAiming.startX - (laserAiming.currentX - laserAiming.startX)} y2={laserAiming.startY - (laserAiming.currentY - laserAiming.startY)} />
           )}
+          {tool === 'plane' && planeAiming && (
+             <line x1={planeAiming.startX} y1={planeAiming.startY} x2={planeAiming.currentX} y2={planeAiming.currentY} stroke="var(--primary)" strokeWidth="4" strokeDasharray="8 8" strokeLinecap="round" />
+          )}
         </svg>
         {activeLasers.map(laser => (
            laser.sparks.map((spark, i) => (
@@ -2041,6 +2203,11 @@ export function Canvas() {
              {b.capturedEmoji && <div className="bubble-content">{b.capturedEmoji.emoji}</div>}
           </div>
         ))}
+        {activePlanes.map(plane => (
+          <div key={plane.id} className="paper-plane-active" style={{ left: plane.x, top: plane.y, position: 'absolute', transform: `translate(-50%, -50%) rotate(${plane.angle + Math.PI/4}rad)` }} aria-hidden="true">
+            <Send size={32} color="#9ca3af" fill="#e5e7eb" />
+          </div>
+        ))}
         <WildlifeTracker view={view} onDiscover={handleAnimalDiscover} />
         {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
         {musicBoxActive && <MusicBox strokes={strokes} view={view} stamps={stamps} />}
@@ -2096,6 +2263,7 @@ export function Canvas() {
       <Button variant={tool === 'shooter' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="星际保卫战" onClick={() => { setTool('shooter'); showToast('已切换至: 星际保卫战'); }}><Rocket /></Button>
       <Button variant={tool === 'fish' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="钓鱼" onClick={() => { setTool('fish'); showToast('已切换至: 钓鱼'); }}><Fish /></Button>
       <Button variant={tool === 'map' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藏宝图" onClick={() => { setTool('map'); showToast('已切换至: 藏宝图'); }}><Map /></Button>
+      <Button variant={tool === 'plane' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="纸飞机" onClick={() => { setTool('plane'); showToast('已切换至: 纸飞机'); }}><Send /></Button>
       <Button variant={tool === 'vine' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藤蔓" onClick={() => { setTool('vine'); showToast('已切换至: 藤蔓'); }}><Leaf /></Button>
       <Button variant={tool === 'jumper' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="跳跳乐" onClick={() => { setTool('jumper'); showToast('已切换至: 跳跳乐'); }}><ChevronsUp /></Button>
       <Button variant={tool === 'firework' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="烟花" onClick={() => { setTool('firework'); showToast('已切换至: 烟花'); }}><Star /></Button>
