@@ -889,6 +889,47 @@
   animation: blackhole-pulse 2s infinite alternate;
 }
 
+.ufo-beam-field {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, rgba(16, 185, 129, 0.1) 40%, transparent 70%);
+  animation: ufoPulse 1.5s infinite alternate ease-in-out;
+}
+
+.ufo-core {
+  width: 60px;
+  height: 20px;
+  background: #94a3b8;
+  border-radius: 50%;
+  box-shadow: 0 0 20px 5px rgba(16, 185, 129, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.5);
+  z-index: 10;
+  position: relative;
+}
+
+.ufo-core::after {
+  content: '';
+  position: absolute;
+  top: -15px;
+  left: 15px;
+  width: 30px;
+  height: 20px;
+  background: rgba(16, 185, 129, 0.6);
+  border-radius: 50% 50% 0 0;
+}
+
+@keyframes ufoPulse {
+  0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+}
+
 @keyframes blackhole-pulse {
   0% { transform: scale(0.9); box-shadow: 0 0 40px 10px rgba(100, 0, 255, 0.5); }
   100% { transform: scale(1.1); box-shadow: 0 0 60px 30px rgba(150, 0, 255, 0.8); }

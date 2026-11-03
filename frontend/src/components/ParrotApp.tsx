@@ -75,7 +75,8 @@ export function ParrotApp() {
           'map': '要去找宝藏吗？带上我！',
           'golf': '好球！嘎！',
           'sonar': '哔哔哔，发现好吃的了吗？',
-          'tornado': '哇啊啊，风好大！'
+          'tornado': '哇啊啊，风好大！',
+          'ufo': '外星人来啦！快跑！嘎！'
         };
         if (toolMsg[ce.detail.tool]) {
           interact(false, toolMsg[ce.detail.tool]);
