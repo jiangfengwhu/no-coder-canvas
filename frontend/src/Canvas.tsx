@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -46,6 +46,9 @@ type Bubble = { id: string; x: number; y: number; radius: number; capturedEmoji?
 type SoundCaption = { id: string; color: string; text: string; x: number; y: number; isOffscreen?: boolean; angle?: number; worldX?: number; worldY?: number };
 type SonarPing = { id: string; x: number; y: number };
 type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp' | 'fossil'; delay: number; emoji: string };
+type FishingPond = { id: string; x: number; y: number; active: boolean };
+
+const FISH_EMOJIS = ['🐟', '🐠', '🐡', '🐙', '🦑', '🦐', '🦞', '🦀', '🦈', '🐬', '🐳', '🐢'];
 
 function generateTreasures(): Treasure[] {
   const treasures: Treasure[] = [];
@@ -82,18 +85,66 @@ function generateFossils(): Fossil[] {
   return fossils;
 }
 
+function generateFishingPonds(): FishingPond[] {
+  const ponds: FishingPond[] = [];
+  for (let i = 0; i < 30; i++) {
+    const angle = Math.random() * 2 * Math.PI;
+    const radius = 1000 + Math.random() * 7000;
+    ponds.push({
+      id: `pond-${i}`,
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      active: true
+    });
+  }
+  return ponds;
+}
+
 // Application features belong inside this workspace; the control shell is separate.
 export function Canvas() {
+
   const [view, setView] = useState(initial);
   const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish'>('pan');
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
+  const [fishingPonds, setFishingPonds] = useState<FishingPond[]>(generateFishingPonds);
+  const [fishingState, setFishingState] = useState<{ active: boolean; pondId: string | null; bobberX: number; bobberY: number; status: 'idle' | 'waiting' | 'bite' | 'caught' | 'escaped' }>({ active: false, pondId: null, bobberX: 0, bobberY: 0, status: 'idle' });
+
+  useEffect(() => {
+      if (fishingState.status === 'waiting') {
+        const waitTime = 2000 + Math.random() * 3000;
+        const t = setTimeout(() => {
+          setFishingState(prev => prev.status === 'waiting' ? { ...prev, status: 'bite' } : prev);
+        }, waitTime);
+        return () => clearTimeout(t);
+      }
+
+      if (fishingState.status === 'bite') {
+        const escapeTime = 800 + Math.random() * 500;
+        const t = setTimeout(() => {
+          setFishingState(prev => {
+            if (prev.status === 'bite') {
+              showToast('哎呀，鱼跑了！');
+              return { ...prev, status: 'escaped' };
+            }
+            return prev;
+          });
+
+          setTimeout(() => {
+            setFishingState(prev => prev.status === 'escaped' ? { active: false, pondId: null, bobberX: 0, bobberY: 0, status: 'idle' } : prev);
+          }, 1500);
+        }, escapeTime);
+        return () => clearTimeout(t);
+      }
+    }, [fishingState.status]);
+
+
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
   const [dragging, setDragging] = useState(false);
   const [ballActive, setBallActive] = useState(false);
@@ -437,6 +488,7 @@ export function Canvas() {
       if (key === 's') { setTool('scan'); showToast('已切换至: 扫描仪'); }
       if (key === 'e') { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }
       if (key === 'g') { setTool('golf'); showToast('已切换至: 高尔夫'); }
+      if (key === 'f') { setTool('fish'); showToast('已切换至: 钓鱼'); }
       if (key === 'r') { setTool('sonar'); showToast('已切换至: 声纳探测'); }
       if (key === 'a') { setTool('magnet'); showToast('已切换至: 磁铁'); }
       if (key === 'n') { setTool('ninja'); showToast('已切换至: 切水果'); }
@@ -570,6 +622,34 @@ export function Canvas() {
       const worldY = (event.clientY - view.y) / view.scale;
       setLaserAiming({ startX: worldX, startY: worldY, currentX: worldX, currentY: worldY });
       setDragging(true);
+    } else if (tool === 'fish') {
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+
+      let nearestPondId: string | null = null;
+      for (const p of fishingPonds) {
+        if (p.active && Math.hypot(p.x - worldX, p.y - worldY) < 150) { // slightly larger hit area
+          nearestPondId = p.id;
+          break;
+        }
+      }
+
+      if (fishingState.status === 'idle' && nearestPondId) {
+        setFishingState({ active: true, pondId: nearestPondId, bobberX: worldX, bobberY: worldY, status: 'waiting' });
+      } else if (fishingState.status === 'bite') {
+        const emoji = FISH_EMOJIS[Math.floor(Math.random() * FISH_EMOJIS.length)];
+        setStamps(prev => [...prev, { id: Math.random().toString(36).slice(2), x: fishingState.bobberX, y: fishingState.bobberY, emoji }]);
+        setFishingState(prev => ({ ...prev, status: 'caught' }));
+        showToast('钓到了一条鱼！');
+        playTreasureFound();
+
+        setTimeout(() => {
+          setFishingState({ active: false, pondId: null, bobberX: 0, bobberY: 0, status: 'idle' });
+        }, 1500);
+      } else if (fishingState.status === 'waiting') {
+         setFishingState({ active: false, pondId: null, bobberX: 0, bobberY: 0, status: 'idle' });
+      }
+
     } else if (tool === 'bubble') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       const worldX = (event.clientX - view.x) / view.scale;
@@ -1689,6 +1769,16 @@ export function Canvas() {
                </div>
            ))
         ))}
+
+        {fishingPonds.map(p => p.active && (
+          <div key={p.id} className="fishing-pond" style={{ left: p.x, top: p.y }} aria-hidden="true">
+            <div className="pond-water" />
+          </div>
+        ))}
+        {fishingState.active && fishingState.pondId && (
+          <div className={`bobber ${fishingState.status}`} style={{ left: fishingState.bobberX, top: fishingState.bobberY }} aria-hidden="true" />
+        )}
+
         {stamps.map(stamp => (
           <div key={stamp.id} className="stamp" style={{ left: stamp.x, top: stamp.y }}>
             <div className="stamp-inner">{stamp.emoji}</div>
@@ -1805,6 +1895,7 @@ export function Canvas() {
       <Button variant={tool === 'dig' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="挖掘" onClick={() => { setTool('dig'); showToast('已切换至: 挖掘'); }}><Pickaxe /></Button>
       <Button variant={tool === 'laser' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="激光" onClick={() => { setTool('laser'); showToast('已切换至: 激光'); }}><Zap /></Button>
       <Button variant={tool === 'shooter' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="星际保卫战" onClick={() => { setTool('shooter'); showToast('已切换至: 星际保卫战'); }}><Rocket /></Button>
+      <Button variant={tool === 'fish' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="钓鱼" onClick={() => { setTool('fish'); showToast('已切换至: 钓鱼'); }}><Fish /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
