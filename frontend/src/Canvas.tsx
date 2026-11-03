@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -11,6 +11,7 @@ import { CanvasSnake } from '@/components/CanvasSnake';
 import { SpaceShooter } from '@/components/SpaceShooter';
 import { WildlifeTracker } from '@/components/WildlifeTracker';
 import { StrokeJumper } from '@/components/StrokeJumper';
+import { Fireworks } from '@/components/Fireworks';
 import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle, playBounce } from '@/lib/sound';
 
 type View = { x: number; y: number; scale: number };
@@ -129,7 +130,8 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper'>('pan');
+  const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework'>('pan');
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
@@ -581,10 +583,22 @@ export function Canvas() {
       'pan': 'var(--primary)',
       'dig': 'var(--orange-500, #f97316)',
       'vine': 'var(--green-600, #16a34a)',
+      'firework': '#facc15',
     };
 
     const rippleId = Math.random().toString(36).slice(2);
     setRipples(prev => [...prev, { id: rippleId, x: event.clientX, y: event.clientY, color: rippleColorMap[tool] }]);
+
+    if (tool === 'firework') {
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      setFireworkTargets(prev => [...prev, {
+        id: rippleId,
+        x: worldX,
+        y: worldY,
+        color: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][Math.floor(Math.random() * 6)]
+      }]);
+    }
     setTimeout(() => {
       setRipples(prev => prev.filter(r => r.id !== rippleId));
     }, 600);
@@ -1959,6 +1973,7 @@ export function Canvas() {
       {tool === 'snake' && <CanvasSnake strokes={strokes} view={view} pointerWorldPosRef={pointerWorldPosRef} />}
       {tool === 'shooter' && <SpaceShooter view={view} pointerWorldPosRef={pointerWorldPosRef} />}
       {tool === 'jumper' && <StrokeJumper strokes={strokes} view={view} pointerWorldPosRef={pointerWorldPosRef} />}
+      {(tool === 'firework' || fireworkTargets.length > 0) && <Fireworks fireworks={fireworkTargets} view={view} />}
 
       {/* Aiming line overlay for golf */}
       {tool === 'golf' && dragging && drag.current && drag.current.isDrag && (
@@ -2005,6 +2020,7 @@ export function Canvas() {
       <Button variant={tool === 'fish' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="钓鱼" onClick={() => { setTool('fish'); showToast('已切换至: 钓鱼'); }}><Fish /></Button>
       <Button variant={tool === 'vine' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藤蔓" onClick={() => { setTool('vine'); showToast('已切换至: 藤蔓'); }}><Leaf /></Button>
       <Button variant={tool === 'jumper' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="跳跳乐" onClick={() => { setTool('jumper'); showToast('已切换至: 跳跳乐'); }}><ChevronsUp /></Button>
+      <Button variant={tool === 'firework' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="烟花" onClick={() => { setTool('firework'); showToast('已切换至: 烟花'); }}><Star /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
