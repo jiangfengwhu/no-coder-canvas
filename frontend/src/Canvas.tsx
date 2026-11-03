@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -43,7 +43,7 @@ type Treasure = { id: string; x: number; y: number; emoji: string; discovered: b
 type Fossil = { id: string; x: number; y: number; emoji: string; maxHP: number; hp: number };
 type Ghost = { id: string; x: number; y: number; emoji: string; caught: boolean };
 type Point = { x: number; y: number };
-type Stroke = { id: string; points: Point[]; color: string; type?: 'vine' };
+type Stroke = { id: string; points: Point[]; color: string; type?: 'vine' | 'spray' };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 type MagicParticle = { id: string; x: number; y: number; color: string; size: number };
 type VisualRing = { id: string; color: string };
@@ -127,6 +127,38 @@ function generateGhosts(): Ghost[] {
 // Application features belong inside this workspace; the control shell is separate.
 export function Canvas() {
 
+  function renderSprayCanDots(stroke: Stroke) {
+    if (stroke.type !== 'spray') return null;
+    const dots = [];
+    for (let i = 0; i < stroke.points.length; i++) {
+      const p = stroke.points[i];
+      // Seed based on point coordinates to make the scattering consistent
+      const seed = Math.abs(Math.sin(p.x * 12.9898 + p.y * 78.233)) * 10000;
+      const rand = (n: number) => {
+        const x = Math.sin(seed + n) * 10000;
+        return x - Math.floor(x);
+      };
+
+      const numDots = 6;
+      for (let j = 0; j < numDots; j++) {
+        const angle = rand(j * 2) * Math.PI * 2;
+        const radius = rand(j * 2 + 1) * 20; // 20px scatter radius
+        const dotSize = 1 + rand(j * 3) * 3; // 1 to 4px size
+        dots.push(
+          <circle
+            key={`${stroke.id}-${i}-${j}`}
+            cx={p.x + Math.cos(angle) * radius}
+            cy={p.y + Math.sin(angle) * radius}
+            r={dotSize}
+            fill={stroke.color}
+            opacity={0.6 + rand(j * 4) * 0.4}
+          />
+        );
+      }
+    }
+    return dots;
+  }
+
   function renderVineLeaves(stroke: Stroke) {
     if (stroke.type !== 'vine') return null;
     let accumulatedDist = 0;
@@ -153,7 +185,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
@@ -663,6 +695,7 @@ export function Canvas() {
       if (key === 'd') { setTool('dig'); showToast('已切换至: 挖掘'); }
       if (key === 'l') { setTool('laser'); showToast('已切换至: 激光'); }
       if (key === 'x') { setTool('flashlight'); showToast('已切换至: 手电筒'); }
+      if (key === 'j') { setTool('spray'); showToast('已切换至: 喷漆'); }
       if (key === 'u') { setTool('bubble'); showToast('已切换至: 吹泡泡'); }
       if (key === 'h') { setTool('blackhole'); showToast('已切换至: 黑洞'); }
       if (key === 'i') { setTool('vine'); showToast('已切换至: 藤蔓'); }
@@ -762,6 +795,11 @@ export function Canvas() {
       const worldX = (event.clientX - view.x) / view.scale;
       const worldY = (event.clientY - view.y) / view.scale;
       setCurrentStroke({ id: Math.random().toString(36).slice(2), points: [{ x: worldX, y: worldY }], color: '#22c55e', type: 'vine' });
+    } else if (tool === 'spray') {
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      const color = STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)];
+      setCurrentStroke({ id: Math.random().toString(36).slice(2), points: [{ x: worldX, y: worldY }], color, type: 'spray' });
     } else if (tool === 'magic') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -958,7 +996,7 @@ export function Canvas() {
        if (pointerWorldPosRef) {
           pointerWorldPosRef.current = { x: currentWorldX, y: currentWorldY };
        }
-    } else if (tool === 'pen' || tool === 'kaleidoscope' || tool === 'vine') {
+    } else if (tool === 'pen' || tool === 'kaleidoscope' || tool === 'vine' || tool === 'spray') {
       if (currentStroke) {
         const worldX = (event.clientX - view.x) / view.scale;
         const worldY = (event.clientY - view.y) / view.scale;
@@ -1299,7 +1337,7 @@ export function Canvas() {
   function end(event: PointerEvent<HTMLDivElement>) {
     if (isScanning) setIsScanning(false);
 
-    if (tool === 'pen' || tool === 'vine') {
+    if (tool === 'pen' || tool === 'vine' || tool === 'spray') {
       if (currentStroke) {
         setStrokes(prev => [...prev, currentStroke]);
         setCurrentStroke(null);
@@ -2423,14 +2461,16 @@ export function Canvas() {
         <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
           {strokes.map(stroke => (
             <g key={stroke.id}>
-              <polyline points={stroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+              {stroke.type !== 'spray' && <polyline points={stroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />}
               {renderVineLeaves(stroke)}
+              {renderSprayCanDots(stroke)}
             </g>
           ))}
           {currentStroke && tool !== 'kaleidoscope' && (
             <g>
-              <polyline points={currentStroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={currentStroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+              {currentStroke.type !== 'spray' && <polyline points={currentStroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={currentStroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />}
               {renderVineLeaves(currentStroke)}
+              {renderSprayCanDots(currentStroke)}
             </g>
           )}
           {currentStroke && tool === 'kaleidoscope' && (
@@ -2610,6 +2650,7 @@ export function Canvas() {
       <Button variant={musicBoxActive ? 'secondary' : 'ghost'} size="icon-sm" aria-label="八音盒" onClick={() => { setMusicBoxActive(prev => { const next = !prev; showToast(next ? '八音盒: 开启' : '八音盒: 关闭'); return next; }); }}><Music /></Button>
       <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => { setTool('pan'); showToast('已切换至: 拖动'); }}><Hand /></Button>
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => { setTool('pen'); showToast('已切换至: 画笔'); }}><Pen /></Button>
+      <Button variant={tool === 'spray' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="喷漆" onClick={() => { setTool('spray'); showToast('已切换至: 喷漆'); }}><SprayCan /></Button>
       <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => { setTool('magic'); showToast('已切换至: 魔法棒'); }}><Wand2 /></Button>
       <Button variant={tool === 'bubble' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="吹泡泡" onClick={() => { setTool('bubble'); showToast('已切换至: 吹泡泡'); }}><Droplet /></Button>
       <Button variant={tool === 'blackhole' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="黑洞" onClick={() => { setTool('blackhole'); showToast('已切换至: 黑洞'); }}><CircleDotDashed /></Button>
