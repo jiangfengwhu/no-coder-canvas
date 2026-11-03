@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -131,7 +131,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map'>('pan');
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
@@ -528,6 +528,7 @@ export function Canvas() {
       if (key === 'u') { setTool('bubble'); showToast('已切换至: 吹泡泡'); }
       if (key === 'h') { setTool('blackhole'); showToast('已切换至: 黑洞'); }
       if (key === 'i') { setTool('vine'); showToast('已切换至: 藤蔓'); }
+      if (key === 'y') { setTool('map'); showToast('已切换至: 藏宝图'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -584,6 +585,7 @@ export function Canvas() {
       'dig': 'var(--orange-500, #f97316)',
       'vine': 'var(--green-600, #16a34a)',
       'firework': '#facc15',
+      'map': 'var(--amber-500, #f59e0b)',
     };
 
     const rippleId = Math.random().toString(36).slice(2);
@@ -702,6 +704,19 @@ export function Canvas() {
       const worldY = (event.clientY - view.y) / view.scale;
       const newBubbleId = Math.random().toString(36).slice(2);
       setBubbles(prev => [...prev, { id: newBubbleId, x: worldX, y: worldY, radius: 10, floating: false, phase: Math.random() * Math.PI * 2 }]);
+      setDragging(true);
+    } else if (tool === 'map') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+
+      setStamps(prev => {
+        const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji: '📜' }];
+        if (next.length > 200) return next.slice(next.length - 200);
+        return next;
+      });
+      playStampPlace();
       setDragging(true);
     } else if (tool === 'blackhole') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
@@ -1221,12 +1236,74 @@ export function Canvas() {
               playMagicSparkle();
               setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌳' } : s));
               spawnParticles(['#16a34a', '#4ade80'], 15, 80);
+            } else if (e === '🌳') {
+              playMagicSparkle();
+              const FRUITS = ['🍎', '🍋', '🍒', '🍊', '🍑'];
+              const newFruits: {id: string, x: number, y: number, emoji: string}[] = [];
+              const numFruits = 1 + Math.floor(Math.random() * 3);
+              for (let i = 0; i < numFruits; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 30 + Math.random() * 50;
+                newFruits.push({
+                  id: Math.random().toString(36).slice(2),
+                  x: nearestStamp.x + Math.cos(angle) * dist,
+                  y: nearestStamp.y + Math.sin(angle) * dist,
+                  emoji: FRUITS[Math.floor(Math.random() * FRUITS.length)]
+                });
+              }
+              setStamps(prev => [...prev, ...newFruits]);
+              spawnParticles(['#ef4444', '#facc15', '#16a34a'], 10, 60);
+              showToast('树上结出了果实！');
             } else if (e === '💡') {
               playBounce(300);
               setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌑' } : s));
             } else if (e === '🌑') {
               playBounce(300);
               setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '💡' } : s));
+            } else if (e === '📜') {
+              playMagicSparkle();
+              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🗺️' } : s));
+              spawnParticles(['#f59e0b', '#d97706'], 15, 60);
+              showToast('打开了藏宝图！寻找终点的宝藏吧 🧰');
+
+              // Spawn treasure
+              const angle = Math.random() * Math.PI * 2;
+              const dist = 300 + Math.random() * 400;
+              const treasureX = nearestStamp.x + Math.cos(angle) * dist;
+              const treasureY = nearestStamp.y + Math.sin(angle) * dist;
+
+              const treasureId = Math.random().toString(36).slice(2);
+              setStamps(prev => [...prev, { id: treasureId, x: treasureX, y: treasureY, emoji: '🧰' }]);
+
+              // Draw path
+              const pathPoints: Point[] = [];
+              const steps = 10;
+              for (let i = 0; i <= steps; i++) {
+                pathPoints.push({
+                  x: nearestStamp.x + (treasureX - nearestStamp.x) * (i / steps),
+                  y: nearestStamp.y + (treasureY - nearestStamp.y) * (i / steps)
+                });
+              }
+              setStrokes(prev => [...prev, { id: Math.random().toString(36).slice(2), points: pathPoints, color: '#f59e0b', type: 'vine' }]);
+            } else if (e === '🧰') {
+              playTreasureFound();
+              setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+              spawnParticles(['#facc15', '#fef08a', '#eab308'], 25, 120);
+              showToast('找到了宝藏！💎🪙');
+
+              const REWARDS = ['💎', '🪙', '👑', '💍', '💰'];
+              const newRewards: {id: string, x: number, y: number, emoji: string}[] = [];
+              for (let i = 0; i < 5; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 30 + Math.random() * 80;
+                newRewards.push({
+                  id: Math.random().toString(36).slice(2),
+                  x: nearestStamp.x + Math.cos(angle) * dist,
+                  y: nearestStamp.y + Math.sin(angle) * dist,
+                  emoji: REWARDS[Math.floor(Math.random() * REWARDS.length)]
+                });
+              }
+              setStamps(prev => [...prev, ...newRewards]);
             } else if (MUSIC.includes(e)) {
               playBounce(300);
               spawnParticles(['#a855f7', '#d946ef', '#ec4899'], 8, 60);
@@ -2018,6 +2095,7 @@ export function Canvas() {
       <Button variant={tool === 'laser' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="激光" onClick={() => { setTool('laser'); showToast('已切换至: 激光'); }}><Zap /></Button>
       <Button variant={tool === 'shooter' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="星际保卫战" onClick={() => { setTool('shooter'); showToast('已切换至: 星际保卫战'); }}><Rocket /></Button>
       <Button variant={tool === 'fish' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="钓鱼" onClick={() => { setTool('fish'); showToast('已切换至: 钓鱼'); }}><Fish /></Button>
+      <Button variant={tool === 'map' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藏宝图" onClick={() => { setTool('map'); showToast('已切换至: 藏宝图'); }}><Map /></Button>
       <Button variant={tool === 'vine' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藤蔓" onClick={() => { setTool('vine'); showToast('已切换至: 藤蔓'); }}><Leaf /></Button>
       <Button variant={tool === 'jumper' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="跳跳乐" onClick={() => { setTool('jumper'); showToast('已切换至: 跳跳乐'); }}><ChevronsUp /></Button>
       <Button variant={tool === 'firework' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="烟花" onClick={() => { setTool('firework'); showToast('已切换至: 烟花'); }}><Star /></Button>
