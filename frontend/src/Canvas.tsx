@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -42,6 +42,7 @@ type Stroke = { id: string; points: Point[]; color: string };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 type MagicParticle = { id: string; x: number; y: number; color: string; size: number };
 type VisualRing = { id: string; color: string };
+type Bubble = { id: string; x: number; y: number; radius: number; capturedEmoji?: {id: string, emoji: string}; floating: boolean; phase: number };
 type SoundCaption = { id: string; color: string; text: string; x: number; y: number; isOffscreen?: boolean; angle?: number; worldX?: number; worldY?: number };
 type SonarPing = { id: string; x: number; y: number };
 type SonarHighlight = { id: string; x: number; y: number; type: 'treasure' | 'stamp' | 'fossil'; delay: number; emoji: string };
@@ -89,7 +90,8 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble'>('pan');
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
   const [magicParticles, setMagicParticles] = useState<MagicParticle[]>([]);
@@ -113,10 +115,25 @@ export function Canvas() {
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
   const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
   const viewRef = useRef<View>(initial);
+  const bubblesRef = useRef<Bubble[]>([]);
+  const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string }[]>([]);
+  const strokesRef = useRef<Stroke[]>([]);
 
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    bubblesRef.current = bubbles;
+  }, [bubbles]);
+
+  useEffect(() => {
+    stampsRef.current = stamps;
+  }, [stamps]);
+
+  useEffect(() => {
+    strokesRef.current = strokes;
+  }, [strokes]);
 
 
   const calculateLaserPath = (startX: number, startY: number, dirX: number, dirY: number) => {
@@ -427,6 +444,7 @@ export function Canvas() {
       if (key === 't') { setTool('tornado'); showToast('已切换至: 龙卷风'); }
       if (key === 'd') { setTool('dig'); showToast('已切换至: 挖掘'); }
       if (key === 'l') { setTool('laser'); showToast('已切换至: 激光'); }
+      if (key === 'u') { setTool('bubble'); showToast('已切换至: 吹泡泡'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -549,6 +567,13 @@ export function Canvas() {
       const worldX = (event.clientX - view.x) / view.scale;
       const worldY = (event.clientY - view.y) / view.scale;
       setLaserAiming({ startX: worldX, startY: worldY, currentX: worldX, currentY: worldY });
+      setDragging(true);
+    } else if (tool === 'bubble') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      const newBubbleId = Math.random().toString(36).slice(2);
+      setBubbles(prev => [...prev, { id: newBubbleId, x: worldX, y: worldY, radius: 10, floating: false, phase: Math.random() * Math.PI * 2 }]);
       setDragging(true);
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
@@ -888,6 +913,26 @@ export function Canvas() {
       const worldX = (event.clientX - view.x) / view.scale;
       const worldY = (event.clientY - view.y) / view.scale;
       setLaserAiming(prev => prev ? { ...prev, currentX: worldX, currentY: worldY } : null);
+    } else if (tool === 'bubble') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+
+      const dx = event.clientX - drag.current.x;
+      const dy = event.clientY - drag.current.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+
+      if (drag.current.isDrag && dist > 0) {
+        setBubbles(prev => prev.map(b => {
+          if (!b.floating) {
+             return { ...b, radius: Math.min(200, b.radius + dist / view.scale) };
+          }
+          return b;
+        }));
+      }
     } else {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
@@ -1130,6 +1175,13 @@ export function Canvas() {
       drag.current = null;
       setDragging(false);
       setLaserAiming(null);
+    } else if (tool === 'bubble') {
+      setBubbles(prev => prev.map(b => {
+        if (!b.floating) return { ...b, floating: true };
+        return b;
+      }));
+      drag.current = null;
+      setDragging(false);
     }
   }
 
@@ -1161,6 +1213,125 @@ export function Canvas() {
       setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
     }, 600);
   }
+
+  // Bubble physics logic (animation loop)
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastTime = performance.now();
+
+    const updateBubbles = (time: number) => {
+      const dt = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (dt > 0.1) {
+        animationFrameId = requestAnimationFrame(updateBubbles);
+        return; // skip large jumps
+      }
+
+      const currentBubbles = bubblesRef.current;
+      if (currentBubbles.length === 0) {
+         animationFrameId = requestAnimationFrame(updateBubbles);
+         return;
+      }
+
+      let bubblesChanged = false;
+      let stampsChanged = false;
+      const poppedBubbleIds = new Set<string>();
+      const releasedEmojis: {id: string, x: number, y: number, emoji: string}[] = [];
+      let currentStamps = [...stampsRef.current];
+
+      const nextBubbles = currentBubbles.map(bubble => {
+         if (!bubble.floating) return bubble;
+         bubblesChanged = true;
+
+         const newPhase = bubble.phase + dt * 2;
+         const moveY = -100 * dt;
+         const moveX = Math.sin(newPhase) * 50 * dt;
+         const newX = bubble.x + moveX;
+         const newY = bubble.y + moveY;
+         const newRadius = bubble.radius - dt * 2;
+
+         if (newRadius < 10) {
+            poppedBubbleIds.add(bubble.id);
+            if (bubble.capturedEmoji) {
+               releasedEmojis.push({ id: bubble.capturedEmoji.id, x: newX, y: newY, emoji: bubble.capturedEmoji.emoji });
+            }
+            return { ...bubble, radius: newRadius };
+         }
+
+         let nextBubble = { ...bubble, x: newX, y: newY, phase: newPhase, radius: newRadius };
+
+         if (!nextBubble.capturedEmoji) {
+            let stampCaptured = false;
+            let stampToCapture: {id: string, emoji: string} | null = null;
+
+            const remainingStamps = currentStamps.filter(s => {
+               if (stampCaptured) return true;
+               const dist = Math.hypot(s.x - newX, s.y - newY);
+               if (dist < nextBubble.radius) {
+                  stampCaptured = true;
+                  stampToCapture = { id: s.id, emoji: s.emoji };
+                  stampsChanged = true;
+                  return false;
+               }
+               return true;
+            });
+
+            if (stampToCapture) {
+               nextBubble.capturedEmoji = stampToCapture;
+               currentStamps = remainingStamps;
+            }
+         }
+
+         let hitStroke = false;
+         for (const stroke of strokesRef.current) {
+            for (const p of stroke.points) {
+               if (Math.hypot(p.x - newX, p.y - newY) < nextBubble.radius) {
+                  hitStroke = true;
+                  break;
+               }
+            }
+            if (hitStroke) break;
+         }
+
+         if (hitStroke) {
+            poppedBubbleIds.add(nextBubble.id);
+            if (nextBubble.capturedEmoji) {
+               releasedEmojis.push({ id: nextBubble.capturedEmoji.id, x: newX, y: newY, emoji: nextBubble.capturedEmoji.emoji });
+            }
+         }
+
+         return nextBubble;
+      });
+
+      if (poppedBubbleIds.size > 0) {
+         poppedBubbleIds.forEach(id => {
+            const b = currentBubbles.find(bb => bb.id === id);
+            if (b) {
+               popStamp(b.x, b.y, id);
+            }
+         });
+
+         if (releasedEmojis.length > 0) {
+            currentStamps = [...currentStamps, ...releasedEmojis];
+            stampsChanged = true;
+         }
+      }
+
+      if (bubblesChanged || poppedBubbleIds.size > 0) {
+         setBubbles(nextBubbles.filter(b => !poppedBubbleIds.has(b.id)));
+      }
+
+      if (stampsChanged) {
+         setStamps(currentStamps);
+      }
+
+      animationFrameId = requestAnimationFrame(updateBubbles);
+    };
+
+    animationFrameId = requestAnimationFrame(updateBubbles);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
 
   // Tornado effect logic (animation loop)
   useEffect(() => {
@@ -1437,6 +1608,23 @@ export function Canvas() {
             {h.emoji}
           </div>
         ))}
+        {bubbles.map(b => (
+          <div key={b.id} className="bubble" style={{
+            left: b.x, top: b.y,
+            width: b.radius * 2, height: b.radius * 2,
+            marginLeft: -b.radius, marginTop: -b.radius
+          }} onClick={(e) => {
+             e.stopPropagation();
+             popStamp(b.x, b.y, b.id);
+             if (b.capturedEmoji) {
+                setStamps(prev => [...prev, { id: b.capturedEmoji!.id, x: b.x, y: b.y, emoji: b.capturedEmoji!.emoji }]);
+             }
+             setBubbles(prev => prev.filter(bb => bb.id !== b.id));
+          }}>
+             <div className="bubble-highlight" />
+             {b.capturedEmoji && <div className="bubble-content">{b.capturedEmoji.emoji}</div>}
+          </div>
+        ))}
         <WildlifeTracker view={view} onDiscover={handleAnimalDiscover} />
         {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
         {musicBoxActive && <MusicBox strokes={strokes} view={view} stamps={stamps} />}
@@ -1473,6 +1661,7 @@ export function Canvas() {
       <Button variant={tool === 'pan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="拖动画板" onClick={() => { setTool('pan'); showToast('已切换至: 拖动'); }}><Hand /></Button>
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => { setTool('pen'); showToast('已切换至: 画笔'); }}><Pen /></Button>
       <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => { setTool('magic'); showToast('已切换至: 魔法棒'); }}><Wand2 /></Button>
+      <Button variant={tool === 'bubble' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="吹泡泡" onClick={() => { setTool('bubble'); showToast('已切换至: 吹泡泡'); }}><Droplet /></Button>
       <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => { setTool('scan'); showToast('已切换至: 扫描仪'); }}><Search /></Button>
       <Button variant={tool === 'sonar' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="声纳探测" onClick={() => { setTool('sonar'); showToast('已切换至: 声纳探测'); }}><Radar /></Button>
       <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }}><Smile /></Button>
