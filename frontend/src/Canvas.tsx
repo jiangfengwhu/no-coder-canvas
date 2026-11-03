@@ -1152,18 +1152,86 @@ export function Canvas() {
           }, 600);
 
         } else {
-          // Check if clicking on an existing stamp to pop it
-          let poppedStampId: string | null = null;
-          for (let i = stamps.length - 1; i >= 0; i--) {
-            const dist = Math.hypot(stamps[i].x - worldX, stamps[i].y - worldY);
-            if (dist < 40) { // Stamp hit radius
-              poppedStampId = stamps[i].id;
-              break;
+          // Check if clicking on an existing stamp to interact with it
+          let nearestStamp = null;
+          let minStampDist = Infinity;
+          for (const s of stamps) {
+            const dist = Math.hypot(s.x - worldX, s.y - worldY);
+            if (dist < 40 && dist < minStampDist) {
+              minStampDist = dist;
+              nearestStamp = s;
             }
           }
 
-          if (poppedStampId) {
-            popStamp(worldX, worldY, poppedStampId);
+          if (nearestStamp) {
+            const e = nearestStamp.emoji;
+            const ANIMALS = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦋', '🐢', '🐈', '🐕', '🐾'];
+            const MUSIC = ['🎵', '🎶', '🎸', '🎹', '🎷', '🎺', '🎻', '🥁'];
+            const BALLS = ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'];
+            const BOMBS = ['💣', '🧨'];
+
+            let actionTaken = true;
+            let particlesToSpawn: Particle[] = [];
+            const spawnParticles = (colors: string[], count = 10, distanceScale = 80) => {
+              for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 20 + Math.random() * distanceScale;
+                particlesToSpawn.push({
+                  id: Math.random().toString(36).slice(2),
+                  x: nearestStamp.x, y: nearestStamp.y,
+                  color: colors[Math.floor(Math.random() * colors.length)],
+                  tx: `${Math.cos(angle) * distance}px`, ty: `${Math.sin(angle) * distance}px`
+                });
+              }
+            };
+
+            if (e === '🎈') {
+              playStampPop();
+              setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+              spawnParticles(['#ef4444', '#3b82f6', '#22c55e', '#eab308'], 15);
+              showToast('啪！气球破了 🎈');
+            } else if (BOMBS.includes(e)) {
+              playStampPop();
+              setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+              spawnParticles(['#ef4444', '#f97316', '#f59e0b', '#000000'], 30, 150);
+              showToast('轰！爆炸了 💥');
+            } else if (ANIMALS.includes(e)) {
+              playMagicSparkle();
+              spawnParticles(['#ec4899', '#f43f5e', '#f9a8d4'], 8, 50);
+              showToast(`抚摸了 ${e} 💕`);
+            } else if (e === '🌱') {
+              playMagicSparkle();
+              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌿' } : s));
+              spawnParticles(['#22c55e', '#86efac'], 10, 60);
+            } else if (e === '🌿') {
+              playMagicSparkle();
+              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌳' } : s));
+              spawnParticles(['#16a34a', '#4ade80'], 15, 80);
+            } else if (e === '💡') {
+              playBounce(300);
+              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌑' } : s));
+            } else if (e === '🌑') {
+              playBounce(300);
+              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '💡' } : s));
+            } else if (MUSIC.includes(e)) {
+              playBounce(300);
+              spawnParticles(['#a855f7', '#d946ef', '#ec4899'], 8, 60);
+            } else if (BALLS.includes(e)) {
+              playBounce(300);
+              const angle = Math.atan2(nearestStamp.y - worldY, nearestStamp.x - worldX);
+              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, x: s.x + Math.cos(angle) * 80, y: s.y + Math.sin(angle) * 80 } : s));
+              spawnParticles(['#d1d5db', '#9ca3af'], 5, 30);
+            } else {
+              // Default action: pop it
+              popStamp(worldX, worldY, nearestStamp.id);
+            }
+
+            if (actionTaken && particlesToSpawn.length > 0) {
+              setParticles(prev => [...prev, ...particlesToSpawn]);
+              setTimeout(() => {
+                setParticles(prev => prev.filter(p => !particlesToSpawn.find(np => np.id === p.id)));
+              }, 1000);
+            }
           } else {
             // Place normal stamp if not using stamp-brush (as it already placed one on down)
             if (tool !== 'stamp-brush') {
