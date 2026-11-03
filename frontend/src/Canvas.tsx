@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -185,6 +185,8 @@ export function Canvas() {
 
   const [visualRings, setVisualRings] = useState<VisualRing[]>([]);
   const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
+  const [showCaptionsLog, setShowCaptionsLog] = useState(false);
+  const [captionsLog, setCaptionsLog] = useState<{ id: string; text: string; color: string; x?: number; y?: number; time: number }[]>([]);
   const viewRef = useRef<View>(initial);
   const bubblesRef = useRef<Bubble[]>([]);
   const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string }[]>([]);
@@ -426,6 +428,10 @@ export function Canvas() {
             screenY = 10 + Math.random() * 80;
           }
           setSoundCaptions(prev => [...prev, { id, color: customEvent.detail.color, text: customEvent.detail.text!, x: screenX, y: screenY, isOffscreen, angle, worldX: customEvent.detail.x, worldY: customEvent.detail.y }]);
+          setCaptionsLog(prev => {
+            const next = [{ id, text: customEvent.detail.text!, color: customEvent.detail.color, x: customEvent.detail.x, y: customEvent.detail.y, time: Date.now() }, ...prev];
+            return next.slice(0, 20); // Keep max 20 logs
+          });
 
           setTimeout(() => {
             setSoundCaptions(prev => prev.filter(c => c.id !== id));
@@ -1935,7 +1941,37 @@ export function Canvas() {
       <span className="canvas-scale" aria-live="polite">{Math.round(view.scale * 100)}%</span>
       <Button variant="ghost" size="icon-sm" aria-label="放大画板" onClick={() => zoom(1.2, innerWidth / 2, innerHeight / 2)}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="重置画板视图" onClick={() => { setView(initial); showToast('视图已重置'); }}><LocateFixed /></Button>
+      <Button variant={showCaptionsLog ? 'secondary' : 'ghost'} size="icon-sm" aria-label="声音记录" onClick={() => { setShowCaptionsLog(prev => !prev); showToast(showCaptionsLog ? '声音记录: 关闭' : '声音记录: 开启'); }}><Captions /></Button>
     </div>
+
+    {showCaptionsLog && (
+      <div className="captions-log-panel" role="log" aria-live="polite" aria-label="声音记录日志">
+        <div className="captions-log-header">最近的声音</div>
+        <div className="captions-log-list">
+          {captionsLog.length === 0 && <div className="captions-log-empty">暂无记录</div>}
+          {captionsLog.map(log => (
+            <button
+              key={log.id}
+              className={`captions-log-item ${log.x !== undefined && log.y !== undefined ? 'clickable' : ''}`}
+              style={{ '--log-color': log.color } as React.CSSProperties}
+              onClick={() => {
+                if (log.x !== undefined && log.y !== undefined) {
+                  // Pan to location
+                  setView(v => ({ x: -log.x! * v.scale + window.innerWidth / 2, y: -log.y! * v.scale + window.innerHeight / 2, scale: v.scale }));
+                  playBounce(1500, log.color, log.x, log.y);
+                }
+              }}
+              title={log.x !== undefined && log.y !== undefined ? '点击定位并重放' : undefined}
+            >
+              <span className="captions-log-time">{new Date(log.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</span>
+              <span className="captions-log-text">{log.text}</span>
+              {log.x !== undefined && log.y !== undefined && <Navigation className="captions-log-nav-icon" size={12} />}
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
+
     <p className="canvas-hint">拖动或方向键移动 · Ctrl+滚轮或+/-缩放 · 0 重置 · 快捷键 V / P(B) / M / S / R / E / G / A / K / T</p>
     {OnekoComponent && <OnekoComponent />}
     <ParrotApp />
