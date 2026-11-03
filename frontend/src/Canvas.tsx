@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -38,7 +38,7 @@ const ALCHEMY_RECIPES = Object.fromEntries(
 type Treasure = { id: string; x: number; y: number; emoji: string; discovered: boolean };
 type Fossil = { id: string; x: number; y: number; emoji: string; maxHP: number; hp: number };
 type Point = { x: number; y: number };
-type Stroke = { id: string; points: Point[]; color: string };
+type Stroke = { id: string; points: Point[]; color: string; type?: 'vine' };
 type Particle = { id: string; x: number; y: number; color: string; tx: string; ty: string };
 type MagicParticle = { id: string; x: number; y: number; color: string; size: number };
 type VisualRing = { id: string; color: string };
@@ -103,13 +103,32 @@ function generateFishingPonds(): FishingPond[] {
 // Application features belong inside this workspace; the control shell is separate.
 export function Canvas() {
 
+  function renderVineLeaves(stroke: Stroke) {
+    if (stroke.type !== 'vine') return null;
+    let accumulatedDist = 0;
+    const leaves = [];
+    for (let i = 1; i < stroke.points.length; i++) {
+      const p1 = stroke.points[i - 1];
+      const p2 = stroke.points[i];
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      accumulatedDist += dist;
+      if (accumulatedDist >= 40) {
+        // Calculate angle to align leaf with stroke direction
+        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * (180 / Math.PI);
+        leaves.push(<text key={`${stroke.id}-${i}`} x={p2.x} y={p2.y} fontSize="24" style={{ transform: `translate(-12px, 8px) rotate(${angle}deg)`, transformOrigin: `${p2.x}px ${p2.y}px` }}>🍃</text>);
+        accumulatedDist = 0;
+      }
+    }
+    return <g key={`${stroke.id}-leaves`}>{leaves}</g>;
+  }
+
   const [view, setView] = useState(initial);
   const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine'>('pan');
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
@@ -499,6 +518,7 @@ export function Canvas() {
       if (key === 'l') { setTool('laser'); showToast('已切换至: 激光'); }
       if (key === 'u') { setTool('bubble'); showToast('已切换至: 吹泡泡'); }
       if (key === 'h') { setTool('blackhole'); showToast('已切换至: 黑洞'); }
+      if (key === 'i') { setTool('vine'); showToast('已切换至: 藤蔓'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -553,6 +573,7 @@ export function Canvas() {
       'pen': 'var(--blue-500, #3b82f6)',
       'pan': 'var(--primary)',
       'dig': 'var(--orange-500, #f97316)',
+      'vine': 'var(--green-600, #16a34a)',
     };
 
     const rippleId = Math.random().toString(36).slice(2);
@@ -570,6 +591,10 @@ export function Canvas() {
       const worldY = (event.clientY - view.y) / view.scale;
       const color = STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)];
       setCurrentStroke({ id: Math.random().toString(36).slice(2), points: [{ x: worldX, y: worldY }], color });
+    } else if (tool === 'vine') {
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      setCurrentStroke({ id: Math.random().toString(36).slice(2), points: [{ x: worldX, y: worldY }], color: '#22c55e', type: 'vine' });
     } else if (tool === 'magic') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -737,7 +762,7 @@ export function Canvas() {
        if (pointerWorldPosRef) {
           pointerWorldPosRef.current = { x: currentWorldX, y: currentWorldY };
        }
-    } else if (tool === 'pen' || tool === 'kaleidoscope') {
+    } else if (tool === 'pen' || tool === 'kaleidoscope' || tool === 'vine') {
       if (currentStroke) {
         const worldX = (event.clientX - view.x) / view.scale;
         const worldY = (event.clientY - view.y) / view.scale;
@@ -1048,7 +1073,7 @@ export function Canvas() {
   function end(event: PointerEvent<HTMLDivElement>) {
     if (isScanning) setIsScanning(false);
 
-    if (tool === 'pen') {
+    if (tool === 'pen' || tool === 'vine') {
       if (currentStroke) {
         setStrokes(prev => [...prev, currentStroke]);
         setCurrentStroke(null);
@@ -1723,10 +1748,16 @@ export function Canvas() {
       <div className="canvas-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} aria-hidden="true">
         <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
           {strokes.map(stroke => (
-            <polyline key={stroke.id} points={stroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+            <g key={stroke.id}>
+              <polyline points={stroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+              {renderVineLeaves(stroke)}
+            </g>
           ))}
           {currentStroke && tool !== 'kaleidoscope' && (
-            <polyline points={currentStroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={currentStroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+            <g>
+              <polyline points={currentStroke.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={currentStroke.color} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+              {renderVineLeaves(currentStroke)}
+            </g>
           )}
           {currentStroke && tool === 'kaleidoscope' && (
             Array.from({ length: 8 }).map((_, i) => {
@@ -1896,6 +1927,7 @@ export function Canvas() {
       <Button variant={tool === 'laser' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="激光" onClick={() => { setTool('laser'); showToast('已切换至: 激光'); }}><Zap /></Button>
       <Button variant={tool === 'shooter' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="星际保卫战" onClick={() => { setTool('shooter'); showToast('已切换至: 星际保卫战'); }}><Rocket /></Button>
       <Button variant={tool === 'fish' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="钓鱼" onClick={() => { setTool('fish'); showToast('已切换至: 钓鱼'); }}><Fish /></Button>
+      <Button variant={tool === 'vine' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藤蔓" onClick={() => { setTool('vine'); showToast('已切换至: 藤蔓'); }}><Leaf /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
