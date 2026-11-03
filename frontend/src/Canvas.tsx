@@ -289,6 +289,35 @@ export function Canvas() {
     activePlanesRef.current = activePlanes;
   }, [activePlanes]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app-tool-change', { detail: { tool } }));
+    }
+  }, [tool]);
+
+  useEffect(() => {
+    const handleParrotDrop = (e: Event) => {
+      const ce = e as CustomEvent<{ emoji: string }>;
+      if (ce.detail && ce.detail.emoji) {
+        const v = viewRef.current;
+        // Parrot is at right: 28px, bottom: 80px (center approx right 100, bottom 150)
+        // Responsive approx coordinates:
+        const screenX = window.innerWidth - 100;
+        const screenY = window.innerHeight - 150;
+        const worldX = (screenX - v.x) / v.scale;
+        const worldY = (screenY - v.y) / v.scale;
+
+        setStamps(prev => {
+          const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji: ce.detail.emoji }];
+          if (next.length > 200) return next.slice(next.length - 200);
+          return next;
+        });
+        playStampPlace(worldX, worldY);
+      }
+    };
+    window.addEventListener('app-parrot-drop', handleParrotDrop);
+    return () => window.removeEventListener('app-parrot-drop', handleParrotDrop);
+  }, []);
 
   const calculateLaserPath = (startX: number, startY: number, dirX: number, dirY: number) => {
     let px = startX;
