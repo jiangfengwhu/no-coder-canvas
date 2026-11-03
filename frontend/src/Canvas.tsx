@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -186,7 +186,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
@@ -237,6 +237,7 @@ export function Canvas() {
 
   const [activeTornadoes, setActiveTornadoes] = useState<{ id: string; x: number; y: number }[]>([]);
   const [activeBlackholes, setActiveBlackholes] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [activeUfos, setActiveUfos] = useState<{ id: string; x: number; y: number }[]>([]);
   const [flashlightPos, setFlashlightPos] = useState({ x: 0, y: 0 });
   const [activeLasers, setActiveLasers] = useState<{ id: string; paths: {x1: number, y1: number, x2: number, y2: number}[]; sparks: {x: number, y: number}[] }[]>([]);
   const [laserAiming, setLaserAiming] = useState<{ startX: number, startY: number, currentX: number, currentY: number } | null>(null);
@@ -732,6 +733,7 @@ export function Canvas() {
       if (key === 'i') { setTool('vine'); showToast('已切换至: 藤蔓'); }
       if (key === 'y') { setTool('map'); showToast('已切换至: 藏宝图'); }
       if (key === 'q') { setTool('plane'); showToast('已切换至: 纸飞机'); }
+      if (key === '[') { setTool('ufo'); showToast('已切换至: UFO牵引'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -969,6 +971,11 @@ export function Canvas() {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
       setFlashlightPos({ x: event.clientX, y: event.clientY });
+    } else if (tool === 'ufo') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+      const ufoId = Math.random().toString(36).slice(2);
+      setActiveUfos(prev => [...prev, { id: ufoId, x: event.clientX, y: event.clientY }]);
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -1243,6 +1250,19 @@ export function Canvas() {
 
       // Update blackhole position
       setActiveBlackholes(prev => prev.map(t => {
+        return { ...t, x: event.clientX, y: event.clientY };
+      }));
+
+    } else if (tool === 'ufo') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+
+      // Update ufo position
+      setActiveUfos(prev => prev.map(t => {
         return { ...t, x: event.clientX, y: event.clientY };
       }));
 
@@ -1609,6 +1629,10 @@ export function Canvas() {
       setDragging(false);
     } else if (tool === 'blackhole') {
       setActiveBlackholes([]);
+      drag.current = null;
+      setDragging(false);
+    } else if (tool === 'ufo') {
+      setActiveUfos([]);
       drag.current = null;
       setDragging(false);
     } else if (tool === 'magnet') {
@@ -2434,6 +2458,133 @@ export function Canvas() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [activeBlackholes, view]);
 
+
+  // UFO effect logic (animation loop)
+  useEffect(() => {
+    if (activeUfos.length === 0) return;
+
+    let animationFrameId: number;
+    let lastTime = performance.now();
+
+    const updateUfos = (time: number) => {
+      const dt = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (dt > 0.1) {
+        animationFrameId = requestAnimationFrame(updateUfos);
+        return;
+      }
+
+      const ufoRadius = 250;
+      const pullForce = 300; // upward pull
+
+      const processEntities = (entities: any[], isTreasure = false) => {
+        let changed = false;
+        let consumedIds = new Set<string>();
+        const newStampsToSpawn: { id: string, x: number, y: number, emoji: string }[] = [];
+
+        const newEntities = entities.map(entity => {
+          if (isTreasure && entity.discovered) return entity;
+
+          let entityX = entity.x;
+          let entityY = entity.y;
+
+          for (const ufo of activeUfos) {
+             const ux = ufo.x;
+             const uy = ufo.y;
+             const exScreen = entityX * view.scale + view.x;
+             const eyScreen = entityY * view.scale + view.y;
+
+             const dx = ux - exScreen;
+             const dy = uy - eyScreen;
+             const dist = Math.hypot(dx, dy);
+
+             if (dist > 0 && dist < ufoRadius) {
+               changed = true;
+
+               if (dist < 20) {
+                 consumedIds.add(entity.id);
+                 // 10% chance to drop an alien or cow
+                 if (Math.random() < 0.1) {
+                    newStampsToSpawn.push({
+                        id: Math.random().toString(36).slice(2),
+                        x: entityX,
+                        y: entityY,
+                        emoji: Math.random() < 0.5 ? '👽' : '🐄'
+                    });
+                 }
+               } else {
+                 const pull = pullForce * dt;
+                 const ratio = Math.min(1, pull / dist);
+
+                 const newExScreen = exScreen + dx * ratio;
+                 // add a little twirl
+                 const twirl = Math.sin(time / 200) * 10 * dt;
+                 const newEyScreen = eyScreen + dy * ratio + twirl;
+
+                 entityX = (newExScreen - view.x) / view.scale;
+                 entityY = (newEyScreen - view.y) / view.scale;
+               }
+             }
+          }
+
+          if (entityX !== entity.x || entityY !== entity.y) {
+             return { ...entity, x: entityX, y: entityY };
+          }
+          return entity;
+        });
+
+        return { changed, newEntities, consumedIds, newStampsToSpawn };
+      };
+
+      let anyChanged = false;
+      let stampsToSpawn: any[] = [];
+      let anyPop = false;
+
+      setStamps(prevStamps => {
+          const { changed, newEntities, consumedIds, newStampsToSpawn } = processEntities(prevStamps);
+          if (changed) {
+             anyChanged = true;
+             if (newStampsToSpawn.length > 0) {
+                 stampsToSpawn.push(...newStampsToSpawn);
+                 anyPop = true;
+             }
+             return newEntities.filter((e: any) => !consumedIds.has(e.id));
+          }
+          return prevStamps;
+      });
+
+      setTreasures(prevTreasures => {
+          const { changed, newEntities, consumedIds, newStampsToSpawn } = processEntities(prevTreasures, true);
+          if (changed) {
+             anyChanged = true;
+             if (newStampsToSpawn.length > 0) {
+                 stampsToSpawn.push(...newStampsToSpawn);
+                 anyPop = true;
+             }
+             return newEntities.filter((e: any) => !consumedIds.has(e.id));
+          }
+          return prevTreasures;
+      });
+
+      if (anyPop) {
+          playStampPop();
+      }
+
+      if (stampsToSpawn.length > 0) {
+          setTimeout(() => {
+              setStamps(prev => [...prev, ...stampsToSpawn]);
+          }, 0);
+      }
+
+      animationFrameId = requestAnimationFrame(updateUfos);
+    };
+
+    animationFrameId = requestAnimationFrame(updateUfos);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [activeUfos, view]);
+
   // Tornado effect logic (animation loop)
   useEffect(() => {
     if (activeTornadoes.length === 0) return;
@@ -2614,6 +2765,16 @@ export function Canvas() {
         aria-hidden="true"
       >
         <div className="blackhole-core" />
+      </div>
+    ))}
+    {tool === 'ufo' && dragging && drag.current && activeUfos.map(t => (
+      <div
+        key={t.id}
+        className="ufo-beam-field"
+        style={{ left: t.x, top: t.y }}
+        aria-hidden="true"
+      >
+        <div className="ufo-core" />
       </div>
     ))}
     {tool === 'magnet' && drag.current && dragging && (
@@ -2865,6 +3026,7 @@ export function Canvas() {
       <Button variant={tool === 'vine' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藤蔓" onClick={() => { setTool('vine'); showToast('已切换至: 藤蔓'); }}><Leaf /></Button>
       <Button variant={tool === 'drive' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="遥控车" onClick={() => { setTool('drive'); showToast('已切换至: 遥控车'); }}><CarFront /></Button>
       <Button variant={tool === 'flashlight' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="手电筒" onClick={() => { setTool('flashlight'); showToast('已切换至: 手电筒'); }}><Flashlight /></Button>
+      <Button variant={tool === 'ufo' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="UFO牵引" onClick={() => { setTool('ufo'); showToast('已切换至: UFO牵引'); }}><Orbit /></Button>
       <Button variant={tool === 'jumper' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="跳跳乐" onClick={() => { setTool('jumper'); showToast('已切换至: 跳跳乐'); }}><ChevronsUp /></Button>
       <Button variant={tool === 'firework' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="烟花" onClick={() => { setTool('firework'); showToast('已切换至: 烟花'); }}><Star /></Button>
       <Button variant={tool === 'slingshot' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="弹弓" onClick={() => { setTool('slingshot'); showToast('已切换至: 弹弓'); }}><Target /></Button>
