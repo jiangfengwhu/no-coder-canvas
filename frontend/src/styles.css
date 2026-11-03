@@ -591,6 +591,108 @@
   100% { transform: translate(-50%, -50%) scale(0) rotate(360deg); opacity: 0; }
 }
 
+/* Captions Log Panel */
+.captions-log-panel {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  width: 280px;
+  max-height: 400px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  z-index: 45;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  color: #fff;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  animation: log-panel-enter 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+@keyframes log-panel-enter {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.captions-log-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.captions-log-list {
+  padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.captions-log-empty {
+  padding: 20px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+}
+
+.captions-log-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  text-align: left;
+  transition: all 0.2s;
+  color: #e2e8f0;
+  cursor: default;
+}
+
+.captions-log-item.clickable {
+  cursor: pointer;
+}
+
+.captions-log-item.clickable:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
+}
+
+.captions-log-item.clickable:active {
+  transform: scale(0.98);
+}
+
+.captions-log-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-right: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.captions-log-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--log-color, #fff);
+  flex: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.captions-log-nav-icon {
+  color: rgba(255, 255, 255, 0.4);
+  margin-left: 8px;
+  transition: color 0.2s;
+}
+
+.captions-log-item.clickable:hover .captions-log-nav-icon {
+  color: var(--log-color, #fff);
+}
+
 /* Accessible Visual Feedback for Sounds */
 .canvas-visual-feedback {
   position: absolute;
