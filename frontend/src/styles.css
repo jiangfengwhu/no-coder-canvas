@@ -314,6 +314,76 @@
   filter: sepia(1) hue-rotate(180deg) brightness(1.5) drop-shadow(0 0 10px rgba(0, 255, 255, 0.8));
 }
 
+.focus-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 60px, rgba(0,0,0,0.6) 150px);
+  z-index: 25;
+  opacity: 0;
+  transition: opacity 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.focus-overlay.active {
+  opacity: 1;
+}
+
+.focus-tooltip {
+  position: absolute;
+  top: calc(50% + 80px);
+  background: var(--card);
+  color: var(--primary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  animation: toast-slide-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.stamp.is-focused .stamp-inner {
+  transform: scale(1.4);
+  filter: drop-shadow(0 0 12px var(--primary));
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.2s;
+}
+.stamp.is-focused::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--primary);
+  animation: pulse-ring 1.5s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.hidden-treasure.is-focused {
+  transform: translate(-50%, -50%) scale(1.4);
+  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
+  transition: all 0.2s;
+}
+.hidden-treasure.is-focused::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.8);
+  animation: pulse-ring-treasure 1.5s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0px var(--primary); opacity: 1; }
+  100% { box-shadow: 0 0 0 20px var(--primary); opacity: 0; }
+}
+
+@keyframes pulse-ring-treasure {
+  0% { box-shadow: 0 0 0 0px rgba(255, 215, 0, 0.8); opacity: 1; }
+  100% { box-shadow: 0 0 0 20px rgba(255, 215, 0, 0.8); opacity: 0; }
+}
+
+
 .music-hit-particle {
   width: 20px;
   height: 20px;

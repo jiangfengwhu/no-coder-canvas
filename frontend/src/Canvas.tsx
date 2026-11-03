@@ -195,14 +195,22 @@ export function Canvas() {
   const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
   const [showCaptionsLog, setShowCaptionsLog] = useState(false);
   const [captionsLog, setCaptionsLog] = useState<{ id: string; text: string; color: string; x?: number; y?: number; time: number }[]>([]);
+  const [focusMode, setFocusMode] = useState(false);
+  const [focusedItem, setFocusedItem] = useState<{ id: string; type: 'treasure' | 'stamp'; x: number; y: number } | null>(null);
+
   const viewRef = useRef<View>(initial);
   const bubblesRef = useRef<Bubble[]>([]);
   const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string }[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
+  const treasuresRef = useRef<Treasure[]>([]);
 
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    treasuresRef.current = treasures;
+  }, [treasures]);
 
   useEffect(() => {
     bubblesRef.current = bubbles;
@@ -512,11 +520,95 @@ export function Canvas() {
     return () => element.removeEventListener('wheel', wheel);
   }, []);
 
+  const focusedItemRef = useRef<{ id: string; type: 'treasure' | 'stamp'; x: number; y: number } | null>(null);
+  useEffect(() => {
+    focusedItemRef.current = focusedItem;
+  }, [focusedItem]);
+
+  const focusModeRef = useRef(false);
+  useEffect(() => {
+    focusModeRef.current = focusMode;
+  }, [focusMode]);
+
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
 
       const key = event.key.toLowerCase();
+
+      if (event.key === 'Tab') {
+        event.preventDefault(); // Prevent standard tabbing out of the canvas when we want to cycle items
+        const currentView = viewRef.current;
+        const centerWorldX = (window.innerWidth / 2 - currentView.x) / currentView.scale;
+        const centerWorldY = (window.innerHeight / 2 - currentView.y) / currentView.scale;
+
+        const interactables = [
+          ...treasuresRef.current.filter(t => !t.discovered).map(t => ({ id: t.id, type: 'treasure' as const, x: t.x, y: t.y })),
+          ...stampsRef.current.map(s => ({ id: s.id, type: 'stamp' as const, x: s.x, y: s.y }))
+        ];
+
+        if (interactables.length === 0) return;
+
+        if (!focusModeRef.current) {
+          setFocusMode(true);
+          // Focus the closest item to center
+          interactables.sort((a, b) => {
+            const distA = Math.hypot(a.x - centerWorldX, a.y - centerWorldY);
+            const distB = Math.hypot(b.x - centerWorldX, b.y - centerWorldY);
+            return distA - distB;
+          });
+          const nextItem = interactables[0];
+          setFocusedItem(nextItem);
+          setView(v => ({
+             ...v,
+             x: window.innerWidth / 2 - nextItem.x * v.scale,
+             y: window.innerHeight / 2 - nextItem.y * v.scale
+          }));
+          return;
+        }
+
+        // Already in focus mode, cycle through items
+        let nextIndex = 0;
+        const currentFocused = focusedItemRef.current;
+        if (currentFocused) {
+          const currentIndex = interactables.findIndex(i => i.id === currentFocused.id);
+          if (currentIndex !== -1) {
+             nextIndex = (currentIndex + (event.shiftKey ? -1 : 1) + interactables.length) % interactables.length;
+          }
+        }
+
+        const nextItem = interactables[nextIndex];
+        setFocusedItem(nextItem);
+        setView(v => ({
+           ...v,
+           x: window.innerWidth / 2 - nextItem.x * v.scale,
+           y: window.innerHeight / 2 - nextItem.y * v.scale
+        }));
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        if (focusModeRef.current && focusedItemRef.current) {
+          event.preventDefault();
+          handleItemInteraction(focusedItemRef.current.type, focusedItemRef.current.id);
+        }
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        if (focusModeRef.current) {
+          event.preventDefault();
+          setFocusMode(false);
+          setFocusedItem(null);
+        }
+        return;
+      }
+
+      // Exit focus mode if other keys are pressed (like panning)
+      if (focusModeRef.current && (key.startsWith('arrow') || ['v','p','b','m','s','e','g','f','r','a','n','c','k','t','d','l','u','h','i','y','q'].includes(key))) {
+         setFocusMode(false);
+         setFocusedItem(null);
+      }
 
       // Tool switching
       if (key === 'v') { setTool('pan'); showToast('已切换至: 拖动'); }
@@ -582,6 +674,11 @@ export function Canvas() {
     if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     (window as any).__lastPointerWorldPos = { x: (event.clientX - view.x) / view.scale, y: (event.clientY - view.y) / view.scale };
+
+    if (focusModeRef.current) {
+       setFocusMode(false);
+       setFocusedItem(null);
+    }
 
     // Add visual ripple with dynamic color based on tool
     const rippleColorMap: Record<string, string> = {
@@ -1178,33 +1275,7 @@ export function Canvas() {
         }
 
         if (foundIndex !== -1) {
-          setTreasures(prev => {
-            const next = [...prev];
-            next[foundIndex] = { ...next[foundIndex], discovered: true };
-            return next;
-          });
-          playTreasureFound();
-          showToast(`发现宝藏！ ${treasures[foundIndex].emoji}`);
-
-          // Spawn confetti particles
-          const newParticles: Particle[] = [];
-          for (let i = 0; i < 30; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = 50 + Math.random() * 150;
-            newParticles.push({
-              id: Math.random().toString(36).slice(2),
-              x: treasures[foundIndex].x,
-              y: treasures[foundIndex].y,
-              color: ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'][Math.floor(Math.random() * 5)],
-              tx: `${Math.cos(angle) * distance}px`,
-              ty: `${Math.sin(angle) * distance}px`,
-            });
-          }
-          setParticles(prev => [...prev, ...newParticles]);
-          setTimeout(() => {
-            setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
-          }, 600);
-
+          handleItemInteraction('treasure', treasures[foundIndex].id);
         } else {
           // Check if clicking on an existing stamp to interact with it
           let nearestStamp = null;
@@ -1218,136 +1289,7 @@ export function Canvas() {
           }
 
           if (nearestStamp) {
-            const e = nearestStamp.emoji;
-            const ANIMALS = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦋', '🐢', '🐈', '🐕', '🐾'];
-            const MUSIC = ['🎵', '🎶', '🎸', '🎹', '🎷', '🎺', '🎻', '🥁'];
-            const BALLS = ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'];
-            const BOMBS = ['💣', '🧨'];
-
-            let actionTaken = true;
-            let particlesToSpawn: Particle[] = [];
-            const spawnParticles = (colors: string[], count = 10, distanceScale = 80) => {
-              for (let i = 0; i < count; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const distance = 20 + Math.random() * distanceScale;
-                particlesToSpawn.push({
-                  id: Math.random().toString(36).slice(2),
-                  x: nearestStamp.x, y: nearestStamp.y,
-                  color: colors[Math.floor(Math.random() * colors.length)],
-                  tx: `${Math.cos(angle) * distance}px`, ty: `${Math.sin(angle) * distance}px`
-                });
-              }
-            };
-
-            if (e === '🎈') {
-              playStampPop();
-              setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
-              spawnParticles(['#ef4444', '#3b82f6', '#22c55e', '#eab308'], 15);
-              showToast('啪！气球破了 🎈');
-            } else if (BOMBS.includes(e)) {
-              playStampPop();
-              setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
-              spawnParticles(['#ef4444', '#f97316', '#f59e0b', '#000000'], 30, 150);
-              showToast('轰！爆炸了 💥');
-            } else if (ANIMALS.includes(e)) {
-              playMagicSparkle();
-              spawnParticles(['#ec4899', '#f43f5e', '#f9a8d4'], 8, 50);
-              showToast(`抚摸了 ${e} 💕`);
-            } else if (e === '🌱') {
-              playMagicSparkle();
-              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌿' } : s));
-              spawnParticles(['#22c55e', '#86efac'], 10, 60);
-            } else if (e === '🌿') {
-              playMagicSparkle();
-              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌳' } : s));
-              spawnParticles(['#16a34a', '#4ade80'], 15, 80);
-            } else if (e === '🌳') {
-              playMagicSparkle();
-              const FRUITS = ['🍎', '🍋', '🍒', '🍊', '🍑'];
-              const newFruits: {id: string, x: number, y: number, emoji: string}[] = [];
-              const numFruits = 1 + Math.floor(Math.random() * 3);
-              for (let i = 0; i < numFruits; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = 30 + Math.random() * 50;
-                newFruits.push({
-                  id: Math.random().toString(36).slice(2),
-                  x: nearestStamp.x + Math.cos(angle) * dist,
-                  y: nearestStamp.y + Math.sin(angle) * dist,
-                  emoji: FRUITS[Math.floor(Math.random() * FRUITS.length)]
-                });
-              }
-              setStamps(prev => [...prev, ...newFruits]);
-              spawnParticles(['#ef4444', '#facc15', '#16a34a'], 10, 60);
-              showToast('树上结出了果实！');
-            } else if (e === '💡') {
-              playBounce(300);
-              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌑' } : s));
-            } else if (e === '🌑') {
-              playBounce(300);
-              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '💡' } : s));
-            } else if (e === '📜') {
-              playMagicSparkle();
-              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🗺️' } : s));
-              spawnParticles(['#f59e0b', '#d97706'], 15, 60);
-              showToast('打开了藏宝图！寻找终点的宝藏吧 🧰');
-
-              // Spawn treasure
-              const angle = Math.random() * Math.PI * 2;
-              const dist = 300 + Math.random() * 400;
-              const treasureX = nearestStamp.x + Math.cos(angle) * dist;
-              const treasureY = nearestStamp.y + Math.sin(angle) * dist;
-
-              const treasureId = Math.random().toString(36).slice(2);
-              setStamps(prev => [...prev, { id: treasureId, x: treasureX, y: treasureY, emoji: '🧰' }]);
-
-              // Draw path
-              const pathPoints: Point[] = [];
-              const steps = 10;
-              for (let i = 0; i <= steps; i++) {
-                pathPoints.push({
-                  x: nearestStamp.x + (treasureX - nearestStamp.x) * (i / steps),
-                  y: nearestStamp.y + (treasureY - nearestStamp.y) * (i / steps)
-                });
-              }
-              setStrokes(prev => [...prev, { id: Math.random().toString(36).slice(2), points: pathPoints, color: '#f59e0b', type: 'vine' }]);
-            } else if (e === '🧰') {
-              playTreasureFound();
-              setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
-              spawnParticles(['#facc15', '#fef08a', '#eab308'], 25, 120);
-              showToast('找到了宝藏！💎🪙');
-
-              const REWARDS = ['💎', '🪙', '👑', '💍', '💰'];
-              const newRewards: {id: string, x: number, y: number, emoji: string}[] = [];
-              for (let i = 0; i < 5; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = 30 + Math.random() * 80;
-                newRewards.push({
-                  id: Math.random().toString(36).slice(2),
-                  x: nearestStamp.x + Math.cos(angle) * dist,
-                  y: nearestStamp.y + Math.sin(angle) * dist,
-                  emoji: REWARDS[Math.floor(Math.random() * REWARDS.length)]
-                });
-              }
-              setStamps(prev => [...prev, ...newRewards]);
-            } else if (MUSIC.includes(e)) {
-              playBounce(300);
-              spawnParticles(['#a855f7', '#d946ef', '#ec4899'], 8, 60);
-            } else if (BALLS.includes(e)) {
-              playBounce(300);
-              const angle = Math.atan2(nearestStamp.y - worldY, nearestStamp.x - worldX);
-              setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, x: s.x + Math.cos(angle) * 80, y: s.y + Math.sin(angle) * 80 } : s));
-              spawnParticles(['#d1d5db', '#9ca3af'], 5, 30);
-            } else {
-              // Default action: pop it
-              popStamp(worldX, worldY, nearestStamp.id);
-            }
-
-            if (actionTaken && particlesToSpawn.length > 0) {
-              setParticles(prev => [...prev, ...particlesToSpawn]);
-              setTimeout(() => {
-                setParticles(prev => prev.filter(p => !particlesToSpawn.find(np => np.id === p.id)));
-              }, 1000);
-            }
+            handleItemInteraction('stamp', nearestStamp.id);
           } else {
             // Place normal stamp if not using stamp-brush (as it already placed one on down)
             if (tool !== 'stamp-brush') {
@@ -1530,6 +1472,182 @@ export function Canvas() {
       setDragging(false);
     }
   }
+
+  const handleItemInteraction = (targetType: 'treasure' | 'stamp', targetId: string) => {
+    if (targetType === 'treasure') {
+      const currentTreasures = treasuresRef.current;
+      const index = currentTreasures.findIndex(t => t.id === targetId);
+      if (index === -1 || currentTreasures[index].discovered) return;
+
+      const t = currentTreasures[index];
+      setTreasures(prev => {
+        const next = [...prev];
+        const nextIndex = next.findIndex(item => item.id === targetId);
+        if (nextIndex > -1) next[nextIndex] = { ...next[nextIndex], discovered: true };
+        return next;
+      });
+      playTreasureFound();
+      showToast(`发现宝藏！ ${t.emoji}`);
+
+      const newParticles: Particle[] = [];
+      for (let i = 0; i < 30; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 50 + Math.random() * 150;
+        newParticles.push({
+          id: Math.random().toString(36).slice(2),
+          x: t.x,
+          y: t.y,
+          color: ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'][Math.floor(Math.random() * 5)],
+          tx: `${Math.cos(angle) * distance}px`,
+          ty: `${Math.sin(angle) * distance}px`,
+        });
+      }
+      setParticles(prev => [...prev, ...newParticles]);
+      setTimeout(() => {
+        setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+      }, 600);
+
+    } else if (targetType === 'stamp') {
+      const nearestStamp = stampsRef.current.find(s => s.id === targetId);
+      if (!nearestStamp) return;
+
+      const e = nearestStamp.emoji;
+      const worldX = nearestStamp.x;
+      const worldY = nearestStamp.y;
+
+      const ANIMALS = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦋', '🐢', '🐈', '🐕', '🐾'];
+      const MUSIC = ['🎵', '🎶', '🎸', '🎹', '🎷', '🎺', '🎻', '🥁'];
+      const BALLS = ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'];
+      const BOMBS = ['💣', '🧨'];
+
+      let actionTaken = true;
+      let particlesToSpawn: Particle[] = [];
+      const spawnParticles = (colors: string[], count = 10, distanceScale = 80) => {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 20 + Math.random() * distanceScale;
+          particlesToSpawn.push({
+            id: Math.random().toString(36).slice(2),
+            x: worldX, y: worldY,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            tx: `${Math.cos(angle) * distance}px`, ty: `${Math.sin(angle) * distance}px`
+          });
+        }
+      };
+
+      if (e === '🎈') {
+        playStampPop();
+        setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+        spawnParticles(['#ef4444', '#3b82f6', '#22c55e', '#eab308'], 15);
+        showToast('啪！气球破了 🎈');
+      } else if (BOMBS.includes(e)) {
+        playStampPop();
+        setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+        spawnParticles(['#ef4444', '#f97316', '#f59e0b', '#000000'], 30, 150);
+        showToast('轰！爆炸了 💥');
+      } else if (ANIMALS.includes(e)) {
+        playMagicSparkle();
+        spawnParticles(['#ec4899', '#f43f5e', '#f9a8d4'], 8, 50);
+        showToast(`抚摸了 ${e} 💕`);
+      } else if (e === '🌱') {
+        playMagicSparkle();
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌿' } : s));
+        spawnParticles(['#22c55e', '#86efac'], 10, 60);
+      } else if (e === '🌿') {
+        playMagicSparkle();
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌳' } : s));
+        spawnParticles(['#16a34a', '#4ade80'], 15, 80);
+      } else if (e === '🌳') {
+        playMagicSparkle();
+        const FRUITS = ['🍎', '🍋', '🍒', '🍊', '🍑'];
+        const newFruits: {id: string, x: number, y: number, emoji: string}[] = [];
+        const numFruits = 1 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < numFruits; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 30 + Math.random() * 50;
+          newFruits.push({
+            id: Math.random().toString(36).slice(2),
+            x: worldX + Math.cos(angle) * dist,
+            y: worldY + Math.sin(angle) * dist,
+            emoji: FRUITS[Math.floor(Math.random() * FRUITS.length)]
+          });
+        }
+        setStamps(prev => [...prev, ...newFruits]);
+        spawnParticles(['#ef4444', '#facc15', '#16a34a'], 10, 60);
+        showToast('树上结出了果实！');
+      } else if (e === '💡') {
+        playBounce(300);
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🌑' } : s));
+      } else if (e === '🌑') {
+        playBounce(300);
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '💡' } : s));
+      } else if (e === '📜') {
+        playMagicSparkle();
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🗺️' } : s));
+        spawnParticles(['#f59e0b', '#d97706'], 15, 60);
+        showToast('打开了藏宝图！寻找终点的宝藏吧 🧰');
+
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 300 + Math.random() * 400;
+        const treasureX = worldX + Math.cos(angle) * dist;
+        const treasureY = worldY + Math.sin(angle) * dist;
+
+        const treasureId = Math.random().toString(36).slice(2);
+        setStamps(prev => [...prev, { id: treasureId, x: treasureX, y: treasureY, emoji: '🧰' }]);
+
+        const pathPoints: Point[] = [];
+        const steps = 10;
+        for (let i = 0; i <= steps; i++) {
+          pathPoints.push({
+            x: worldX + (treasureX - worldX) * (i / steps),
+            y: worldY + (treasureY - worldY) * (i / steps)
+          });
+        }
+        setStrokes(prev => [...prev, { id: Math.random().toString(36).slice(2), points: pathPoints, color: '#f59e0b', type: 'vine' }]);
+      } else if (e === '🧰') {
+        playTreasureFound();
+        setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+        spawnParticles(['#facc15', '#fef08a', '#eab308'], 25, 120);
+        showToast('找到了宝藏！💎🪙');
+
+        const REWARDS = ['💎', '🪙', '👑', '💍', '💰'];
+        const newRewards: {id: string, x: number, y: number, emoji: string}[] = [];
+        for (let i = 0; i < 5; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 30 + Math.random() * 80;
+          newRewards.push({
+            id: Math.random().toString(36).slice(2),
+            x: worldX + Math.cos(angle) * dist,
+            y: worldY + Math.sin(angle) * dist,
+            emoji: REWARDS[Math.floor(Math.random() * REWARDS.length)]
+          });
+        }
+        setStamps(prev => [...prev, ...newRewards]);
+      } else if (MUSIC.includes(e)) {
+        playBounce(300);
+        spawnParticles(['#a855f7', '#d946ef', '#ec4899'], 8, 60);
+      } else if (BALLS.includes(e)) {
+        playBounce(300);
+        // Using screen center as a push reference since event might not be mouse click now
+        const viewCenterWorldX = (window.innerWidth / 2 - viewRef.current.x) / viewRef.current.scale;
+        const viewCenterWorldY = (window.innerHeight / 2 - viewRef.current.y) / viewRef.current.scale;
+        // if this was clicked by mouse, we use mouse pos. The mouse pos is passed in implicitly here from nearestStamp.
+        // We'll just push it right slightly for keyboard users, or away from center.
+        const pushX = worldX > viewCenterWorldX ? 80 : -80;
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, x: s.x + pushX, y: s.y } : s));
+        spawnParticles(['#d1d5db', '#9ca3af'], 5, 30);
+      } else {
+        popStamp(worldX, worldY, nearestStamp.id);
+      }
+
+      if (actionTaken && particlesToSpawn.length > 0) {
+        setParticles(prev => [...prev, ...particlesToSpawn]);
+        setTimeout(() => {
+          setParticles(prev => prev.filter(p => !particlesToSpawn.find(np => np.id === p.id)));
+        }, 1000);
+      }
+    }
+  };
 
   // Workaround for CJS/ESM interop issue with react-cursor-cat in Vite
   const OnekoComponent = typeof Oneko === 'function' ? Oneko : (Oneko as any).default;
@@ -2139,7 +2257,7 @@ export function Canvas() {
         )}
 
         {stamps.map(stamp => (
-          <div key={stamp.id} className="stamp" style={{ left: stamp.x, top: stamp.y }}>
+          <div key={stamp.id} className={`stamp ${focusMode && focusedItem?.id === stamp.id ? 'is-focused' : ''}`} style={{ left: stamp.x, top: stamp.y }}>
             <div className="stamp-inner">{stamp.emoji}</div>
           </div>
         ))}
@@ -2149,9 +2267,9 @@ export function Canvas() {
             <div className="treasure-label">发现宝藏！</div>
           </div>
         ) : (
-          <div key={t.id} className="hidden-treasure" style={{
+          <div key={t.id} className={`hidden-treasure ${focusMode && focusedItem?.id === t.id ? 'is-focused' : ''}`} style={{
             left: t.x, top: t.y,
-            opacity: isScanning && Math.hypot((t.x * view.scale + view.x) - scanPos.x, (t.y * view.scale + view.y) - scanPos.y) < 200 ? 1 : 0
+            opacity: (isScanning && Math.hypot((t.x * view.scale + view.x) - scanPos.x, (t.y * view.scale + view.y) - scanPos.y) < 200) || (focusMode && focusedItem?.id === t.id) ? 1 : 0
           }}>
             {t.emoji}
           </div>
