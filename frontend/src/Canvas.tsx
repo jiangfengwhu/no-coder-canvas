@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind } from 'lucide-react';
+import { Aperture, Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -16,6 +16,12 @@ import { WhackAMole } from '@/components/WhackAMole';
 import { DiceRoller } from '@/components/DiceRoller';
 import { RCCar } from '@/components/RCCar';
 import { playStampPlace, playStampPop, playTreasureFound, playMagicSparkle, playBounce } from '@/lib/sound';
+
+function dispatchGlobalSound(color: string, text?: string, x?: number, y?: number) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app-sound-visual', { detail: { color, text, x, y } }));
+  }
+}
 
 type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
@@ -180,15 +186,20 @@ export function Canvas() {
   }
 
   const [view, setView] = useState(initial);
-  const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string; vx?: number; vy?: number }[]>([]);
+  const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string; vx?: number; vy?: number; lastTeleport?: number }[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+
+  const [portals, setPortals] = useState<{id: string, x: number, y: number, color: string}[]>([]);
+  const portalsRef = useRef<{id: string, x: number, y: number, color: string}[]>([]);
+  useEffect(() => { portalsRef.current = portals; }, [portals]);
+
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
   const [ghosts, setGhosts] = useState<Ghost[]>(generateGhosts);
@@ -258,7 +269,7 @@ export function Canvas() {
 
   const viewRef = useRef<View>(initial);
   const bubblesRef = useRef<Bubble[]>([]);
-  const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string; vx?: number; vy?: number }[]>([]);
+  const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string; vx?: number; vy?: number; lastTeleport?: number }[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const treasuresRef = useRef<Treasure[]>([]);
 
@@ -735,6 +746,7 @@ export function Canvas() {
       if (key === 'q') { setTool('plane'); showToast('已切换至: 纸飞机'); }
       if (key === '[') { setTool('ufo'); showToast('已切换至: UFO牵引'); }
       if (key === 'z') { setTool('wind'); showToast('已切换至: 吹风'); }
+      if (key === '\\') { setTool('portal'); showToast('已切换至: 传送门'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -925,6 +937,19 @@ export function Canvas() {
       const worldX = (event.clientX - view.x) / view.scale;
       const worldY = (event.clientY - view.y) / view.scale;
       setPlaneAiming({ startX: worldX, startY: worldY, currentX: worldX, currentY: worldY });
+      setDragging(true);
+
+    } else if (tool === 'portal') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      setPortals(prev => {
+        const next = [...prev];
+        if (next.length >= 2) next.shift(); // keep max 2
+        const color = next.length === 0 ? '#3b82f6' : (next[0].color === '#3b82f6' ? '#f97316' : '#3b82f6');
+        return [...next, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, color }];
+      });
+      playStampPlace();
       setDragging(true);
     } else if (tool === 'bubble') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
@@ -2256,6 +2281,32 @@ export function Canvas() {
             moved = true; // One last update to clear velocity
          }
 
+
+         if (moved && portalsRef.current.length === 2) {
+            const p1 = portalsRef.current[0];
+            const p2 = portalsRef.current[1];
+
+            // Check teleport cooldown (3 seconds)
+            const canTeleport = stamp.lastTeleport === undefined || time - stamp.lastTeleport > 3000;
+
+            if (canTeleport) {
+               const d1 = Math.hypot(p1.x - newX, p1.y - newY);
+               const d2 = Math.hypot(p2.x - newX, p2.y - newY);
+
+               if (d1 < 40) {
+                  newX = p2.x;
+                  newY = p2.y;
+                  dispatchGlobalSound(p2.color, '咻！', newX, newY);
+                  return { ...stamp, x: newX, y: newY, vx: newVx, vy: newVy, lastTeleport: time };
+               } else if (d2 < 40) {
+                  newX = p1.x;
+                  newY = p1.y;
+                  dispatchGlobalSound(p1.color, '咻！', newX, newY);
+                  return { ...stamp, x: newX, y: newY, vx: newVx, vy: newVy, lastTeleport: time };
+               }
+            }
+         }
+
          if (moved) {
             stampsChanged = true;
             return { ...stamp, x: newX, y: newY, vx: newVx, vy: newVy };
@@ -2927,6 +2978,11 @@ export function Canvas() {
            ))
         ))}
 
+
+        {portals.map((p, i) => (
+          <div key={p.id} className="portal-ring" style={{ left: p.x, top: p.y, '--portal-color': p.color } as React.CSSProperties} aria-hidden="true" />
+        ))}
+
         {fishingPonds.map(p => p.active && (
           <div key={p.id} className="fishing-pond" style={{ left: p.x, top: p.y }} aria-hidden="true">
             <div className="pond-water" />
@@ -3090,6 +3146,9 @@ export function Canvas() {
       <Button variant={tool === 'firework' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="烟花" onClick={() => { setTool('firework'); showToast('已切换至: 烟花'); }}><Star /></Button>
       <Button variant={tool === 'slingshot' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="弹弓" onClick={() => { setTool('slingshot'); showToast('已切换至: 弹弓'); }}><Target /></Button>
       <Button variant={tool === 'wind' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="吹风" onClick={() => { setTool('wind'); showToast('已切换至: 吹风'); }}><Wind /></Button>
+
+      <Button variant={tool === 'portal' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="传送门" onClick={() => { setTool('portal'); showToast('已切换至: 传送门'); }}><Aperture /></Button>
+
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
