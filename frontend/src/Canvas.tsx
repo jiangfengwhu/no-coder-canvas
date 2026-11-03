@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -180,13 +180,13 @@ export function Canvas() {
   }
 
   const [view, setView] = useState(initial);
-  const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
+  const [stamps, setStamps] = useState<{ id: string; x: number; y: number; emoji: string; vx?: number; vy?: number }[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
@@ -257,7 +257,7 @@ export function Canvas() {
 
   const viewRef = useRef<View>(initial);
   const bubblesRef = useRef<Bubble[]>([]);
-  const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string }[]>([]);
+  const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string; vx?: number; vy?: number }[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const treasuresRef = useRef<Treasure[]>([]);
 
@@ -576,7 +576,7 @@ export function Canvas() {
       setToast(current => current?.id === id ? null : current);
     }, 2500);
   }
-  const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; isDrag: boolean } | null>(null);
+  const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; isDrag: boolean; targetId?: string } | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -948,6 +948,23 @@ export function Canvas() {
       setDragging(true);
       const blackholeId = Math.random().toString(36).slice(2);
       setActiveBlackholes(prev => [...prev, { id: blackholeId, x: event.clientX, y: event.clientY }]);
+    } else if (tool === 'slingshot') {
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      const currentStamps = stampsRef.current || stamps;
+      let closest = null;
+      let minD = Infinity;
+      for (const stamp of currentStamps) {
+        const d = Math.hypot(stamp.x - worldX, stamp.y - worldY);
+        if (d < 40 && d < minD) {
+          minD = d;
+          closest = stamp;
+        }
+      }
+      if (closest) {
+        drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false, targetId: closest.id };
+        setDragging(true);
+      }
     } else if (tool === 'flashlight') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -1338,6 +1355,12 @@ export function Canvas() {
           return b;
         }));
       }
+    } else if (tool === 'slingshot') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
     } else if (tool === 'flashlight') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       const dx = event.clientX - drag.current.x, dy = event.clientY - drag.current.y;
@@ -1694,6 +1717,20 @@ export function Canvas() {
       drag.current = null;
       setDragging(false);
       setPlaneAiming(null);
+    } else if (tool === 'slingshot') {
+      if (drag.current && drag.current.targetId && drag.current.isDrag) {
+        const dx = drag.current.startX - drag.current.x;
+        const dy = drag.current.startY - drag.current.y;
+        const target = drag.current.targetId;
+        setStamps(prev => prev.map(s => {
+          if (s.id === target) {
+            return { ...s, vx: (dx / view.scale) * 5, vy: (dy / view.scale) * 5 };
+          }
+          return s;
+        }));
+      }
+      drag.current = null;
+      setDragging(false);
     } else if (tool === 'bubble') {
       setBubbles(prev => prev.map(b => {
         if (!b.floating) return { ...b, floating: true };
@@ -2110,9 +2147,35 @@ export function Canvas() {
             dispatchSound('#f8fafc', '咕咕...');
          }
 
+         let newVx = stamp.vx;
+         let newVy = stamp.vy;
+
+         if (newVx !== undefined && newVy !== undefined && (Math.abs(newVx) > 5 || Math.abs(newVy) > 5)) {
+            newX += newVx * dt;
+            newY += newVy * dt;
+            newVx *= 0.98; // Friction
+            newVy *= 0.98;
+
+            const left = -viewRef.current.x / viewRef.current.scale;
+            const right = (window.innerWidth - viewRef.current.x) / viewRef.current.scale;
+            const top = -viewRef.current.y / viewRef.current.scale;
+            const bottom = (window.innerHeight - viewRef.current.y) / viewRef.current.scale;
+
+            if (newX < left) { newX = left; newVx *= -0.8; }
+            if (newX > right) { newX = right; newVx *= -0.8; }
+            if (newY < top) { newY = top; newVy *= -0.8; }
+            if (newY > bottom) { newY = bottom; newVy *= -0.8; }
+
+            moved = true;
+         } else if (newVx !== undefined || newVy !== undefined) {
+            newVx = undefined;
+            newVy = undefined;
+            moved = true; // One last update to clear velocity
+         }
+
          if (moved) {
             stampsChanged = true;
-            return { ...stamp, x: newX, y: newY };
+            return { ...stamp, x: newX, y: newY, vx: newVx, vy: newVy };
          }
          return stamp;
       });
@@ -2632,6 +2695,9 @@ export function Canvas() {
           {tool === 'plane' && planeAiming && (
              <line x1={planeAiming.startX} y1={planeAiming.startY} x2={planeAiming.currentX} y2={planeAiming.currentY} stroke="var(--primary)" strokeWidth="4" strokeDasharray="8 8" strokeLinecap="round" />
           )}
+          {tool === 'slingshot' && drag.current && drag.current.isDrag && drag.current.targetId && (
+             <line x1={drag.current.startX} y1={drag.current.startY} x2={drag.current.x} y2={drag.current.y} stroke="var(--orange-500, #f97316)" strokeWidth="6" strokeLinecap="round" />
+          )}
         </svg>
         {activeLasers.map(laser => (
            laser.sparks.map((spark, i) => (
@@ -2801,6 +2867,7 @@ export function Canvas() {
       <Button variant={tool === 'flashlight' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="手电筒" onClick={() => { setTool('flashlight'); showToast('已切换至: 手电筒'); }}><Flashlight /></Button>
       <Button variant={tool === 'jumper' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="跳跳乐" onClick={() => { setTool('jumper'); showToast('已切换至: 跳跳乐'); }}><ChevronsUp /></Button>
       <Button variant={tool === 'firework' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="烟花" onClick={() => { setTool('firework'); showToast('已切换至: 烟花'); }}><Star /></Button>
+      <Button variant={tool === 'slingshot' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="弹弓" onClick={() => { setTool('slingshot'); showToast('已切换至: 弹弓'); }}><Target /></Button>
       {(stamps.length > 0 || strokes.length > 0) && (
         <Button variant="ghost" size="icon-sm" aria-label="清除内容" onClick={() => { setStamps([]); setStrokes([]); showToast('已清空画板内容'); }}><Eraser /></Button>
       )}
