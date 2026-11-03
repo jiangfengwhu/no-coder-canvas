@@ -19,7 +19,7 @@ type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
 const clamp = (n: number) => Math.max(.35, Math.min(2.5, n));
 
-const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋'];
+const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋', '💧', '🌱', '🧊', '🎈', '💣', '☁️', '🌽', '🥚'];
 const TREASURE_EMOJIS = ['💎', '👑', '🎁', '🏆', '🔮', '💰', '🗝️'];
 const FOSSIL_EMOJIS = ['🦴', '💎', '🦖', '🏺', '🪙', '🗿'];
 const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
@@ -237,6 +237,7 @@ export function Canvas() {
     let dy = dirY;
     const paths: {x1: number, y1: number, x2: number, y2: number}[] = [];
     const sparks: {x: number, y: number}[] = [];
+    const hitStampIds: string[] = [];
     const maxBounces = 20;
     const rayLength = 8000;
 
@@ -247,6 +248,7 @@ export function Canvas() {
       let hitType = 'none';
       let hitX = px + dx * rayLength;
       let hitY = py + dy * rayLength;
+      let closestStampId: string | null = null;
 
       // Check intersection with strokes (segments)
       for (const stroke of strokes) {
@@ -311,6 +313,8 @@ export function Canvas() {
             nx /= len; ny /= len;
             hitNormalX = nx; hitNormalY = ny;
             hitType = 'stamp';
+
+            closestStampId = stamp.id;
           }
         }
       }
@@ -318,6 +322,9 @@ export function Canvas() {
       paths.push({ x1: px, y1: py, x2: hitX, y2: hitY });
 
       if (hitType !== 'none') {
+        if (hitType === 'stamp' && closestStampId) {
+          hitStampIds.push(closestStampId);
+        }
         sparks.push({ x: hitX, y: hitY });
         // Reflection: R = D - 2(D.N)N
         const dot = dx * hitNormalX + dy * hitNormalY;
@@ -329,7 +336,7 @@ export function Canvas() {
         break; // No hit, ray goes off to infinity (rayLength)
       }
     }
-    return { paths, sparks };
+    return { paths, sparks, hitStampIds };
   };
 
   // Emoji Alchemy logic
@@ -1437,11 +1444,44 @@ export function Canvas() {
         if (dist > 5) {
           const dirX = dx / dist;
           const dirY = dy / dist;
-          const { paths, sparks } = calculateLaserPath(laserAiming.startX, laserAiming.startY, dirX, dirY);
+          const { paths, sparks, hitStampIds } = calculateLaserPath(laserAiming.startX, laserAiming.startY, dirX, dirY);
 
           const laserId = Math.random().toString(36).slice(2);
           setActiveLasers(prev => [...prev, { id: laserId, paths, sparks }]);
           playMagicSparkle(); // Reuse sound
+
+          if (hitStampIds.length > 0) {
+            const stampsToPop: {id: string, x: number, y: number}[] = [];
+
+            setStamps(prev => {
+              let next = [...prev];
+              hitStampIds.forEach(id => {
+                const sIdx = next.findIndex(s => s.id === id);
+                if (sIdx !== -1) {
+                  let newEmoji = next[sIdx].emoji;
+                  if (newEmoji === '🧊' || newEmoji === '⛄') newEmoji = '💧';
+                  else if (newEmoji === '🌽') newEmoji = '🍿';
+                  else if (newEmoji === '🥚') newEmoji = '🍳';
+                  else if (['🌲', '🌳', '🌱', '🌿', '🍀'].includes(newEmoji)) newEmoji = '🔥';
+                  else if (newEmoji === '🐔') newEmoji = '🍗';
+                  else if (newEmoji === '🐷') newEmoji = '🥓';
+
+                  if (newEmoji === '💣' || newEmoji === '🎈') {
+                     stampsToPop.push({ id, x: next[sIdx].x, y: next[sIdx].y });
+                  } else {
+                     next[sIdx] = { ...next[sIdx], emoji: newEmoji };
+                  }
+                }
+              });
+              return next;
+            });
+
+            if (stampsToPop.length > 0) {
+               setTimeout(() => {
+                  stampsToPop.forEach(s => popStamp(s.x, s.y, s.id));
+               }, 50);
+            }
+          }
 
           setTimeout(() => {
             setActiveLasers(prev => prev.filter(l => l.id !== laserId));
@@ -1554,6 +1594,18 @@ export function Canvas() {
         setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
         spawnParticles(['#ef4444', '#3b82f6', '#22c55e', '#eab308'], 15);
         showToast('啪！气球破了 🎈');
+      } else if (e === '☁️') {
+        playMagicSparkle();
+        spawnParticles(['#60a5fa', '#3b82f6', '#93c5fd'], 15, 60);
+        const newDrops: {id: string, x: number, y: number, emoji: string}[] = [];
+        for(let i=0; i<3; i++) {
+           newDrops.push({ id: Math.random().toString(36).slice(2), x: worldX + (Math.random() - 0.5) * 40, y: worldY + 20 + Math.random() * 20, emoji: '💧' });
+        }
+        setStamps(prev => [...prev, ...newDrops]);
+      } else if (e === '🥚') {
+        playStampPop();
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🐣' } : s));
+        spawnParticles(['#fde047', '#fef08a'], 10, 40);
       } else if (BOMBS.includes(e)) {
         playStampPop();
         setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
@@ -1757,16 +1809,28 @@ export function Canvas() {
             return plane;
          }
 
-         // Collision with balloons
+         let finalLife = newLife;
+         let finalVx = newVx;
+         let finalVy = newVy;
+
+         // Collision with balloons and environmental elements
          for (const s of stampsRef.current) {
-            if (s.emoji === '🎈' && !poppedStampIds.has(s.id)) {
-               if (Math.hypot(s.x - newX, s.y - newY) < 30) {
+            const dist = Math.hypot(s.x - newX, s.y - newY);
+            if (dist < 30) {
+               if (s.emoji === '🎈' && !poppedStampIds.has(s.id)) {
                   poppedStampIds.add(s.id);
+               } else if (s.emoji === '🔥') {
+                  finalLife = 0; // Burn up
+                  if (Math.random() < 0.5) newStamps.push({ id: Math.random().toString(36).slice(2), x: newX, y: newY, emoji: '💨' });
+               } else if (s.emoji === '☁️' || s.emoji === '🌧️' || s.emoji === '💧') {
+                  finalLife -= dt * 2; // Wet planes fall faster
+                  finalVx *= 0.9;
+                  finalVy *= 0.9;
                }
             }
          }
 
-         return { ...plane, x: newX, y: newY, vx: newVx, vy: newVy, life: newLife, angle: newAngle };
+         return { ...plane, x: newX, y: newY, vx: finalVx, vy: finalVy, life: finalLife, angle: newAngle };
       });
 
       if (poppedStampIds.size > 0) {
@@ -1895,6 +1959,30 @@ export function Canvas() {
             const b = currentBubbles.find(bb => bb.id === id);
             if (b) {
                popStamp(b.x, b.y, id);
+
+               // Splash effect on nearby stamps
+               let transformedAny = false;
+               currentStamps = currentStamps.map(s => {
+                  if (Math.hypot(s.x - b.x, s.y - b.y) < 80) {
+                     let newEmoji = s.emoji;
+                     if (s.emoji === '🌱') newEmoji = '🌿';
+                     else if (s.emoji === '🌿') newEmoji = '🌳';
+                     else if (s.emoji === '🔥') newEmoji = '💨';
+                     else if (s.emoji === '🥀') newEmoji = '🌺';
+                     else if (s.emoji === '💩') newEmoji = '✨';
+                     else if (s.emoji === '🐱') newEmoji = '🙀';
+                     else if (s.emoji === '☁️') newEmoji = '🌧️';
+
+                     if (newEmoji !== s.emoji) {
+                        transformedAny = true;
+                        return { ...s, emoji: newEmoji };
+                     }
+                  }
+                  return s;
+               });
+               if (transformedAny) {
+                  stampsChanged = true;
+               }
             }
          });
 
