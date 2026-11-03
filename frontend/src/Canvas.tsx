@@ -20,7 +20,7 @@ type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
 const clamp = (n: number) => Math.max(.35, Math.min(2.5, n));
 
-const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋', '💧', '🌱', '🧊', '🎈', '💣', '☁️', '🌽', '🥚'];
+const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋', '💧', '🌱', '🧊', '🎈', '💣', '☁️', '🌽', '🥚', '🛸', '🐌', '🐝', '🕊️', '🦇'];
 const TREASURE_EMOJIS = ['💎', '👑', '🎁', '🏆', '🔮', '💰', '🗝️'];
 const FOSSIL_EMOJIS = ['🦴', '💎', '🦖', '🏺', '🪙', '🗿'];
 const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
@@ -2007,6 +2007,98 @@ export function Canvas() {
     };
 
     animationFrameId = requestAnimationFrame(updatePlanes);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
+
+
+  // Living stamps physics and visual audio logic (animation loop)
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastTime = performance.now();
+    let lastRenderTime = performance.now();
+
+    // Track sounds to prevent spamming
+    const soundTimers: Record<string, number> = {};
+
+    const updateLivingStamps = (time: number) => {
+      const dt = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (dt > 0.1) {
+         animationFrameId = requestAnimationFrame(updateLivingStamps);
+         return;
+      }
+
+      const currentStamps = stampsRef.current;
+      if (currentStamps.length === 0) {
+         animationFrameId = requestAnimationFrame(updateLivingStamps);
+         return;
+      }
+
+      let stampsChanged = false;
+      const nextStamps = currentStamps.map(stamp => {
+         const { emoji, id } = stamp;
+         let newX = stamp.x;
+         let newY = stamp.y;
+         let moved = false;
+
+         const dispatchSound = (color: string, text: string) => {
+            if (!soundTimers[id] || time - soundTimers[id] > 5000 + Math.random() * 5000) {
+               soundTimers[id] = time;
+               if (Math.random() < 0.3) {
+                  window.dispatchEvent(new CustomEvent('app-sound-visual', { detail: { color, text, x: newX, y: newY } }));
+               }
+            }
+         };
+
+         if (emoji === '🎈' || emoji === '☁️') {
+            newY -= 20 * dt;
+            moved = true;
+         } else if (emoji === '🦋' || emoji === '🐝') {
+            newX += (Math.random() - 0.5) * 50 * dt;
+            newY += (Math.random() - 0.5) * 50 * dt - 10 * dt;
+            moved = true;
+            if (emoji === '🐝') dispatchSound('#eab308', '嗡嗡...');
+         } else if (emoji === '🛸' || emoji === '🚀') {
+            newX += 100 * dt;
+            newY -= 50 * dt;
+            moved = true;
+            if (emoji === '🛸') dispatchSound('#a855f7', '嗖...');
+         } else if (emoji === '🐌') {
+            newX += 5 * dt;
+            moved = true;
+         } else if (emoji === '🦇') {
+            newX += (Math.random() - 0.5) * 100 * dt;
+            newY += (Math.random() - 0.5) * 100 * dt;
+            moved = true;
+            dispatchSound('#334155', '叽...');
+         } else if (emoji === '🕊️') {
+            newX -= 60 * dt;
+            newY -= 10 * dt;
+            moved = true;
+            dispatchSound('#f8fafc', '咕咕...');
+         }
+
+         if (moved) {
+            stampsChanged = true;
+            return { ...stamp, x: newX, y: newY };
+         }
+         return stamp;
+      });
+
+      if (stampsChanged) {
+         // Throttle state updates to roughly 20fps for performance
+         stampsRef.current = nextStamps;
+         if (time - lastRenderTime > 50) {
+            setStamps(nextStamps);
+            lastRenderTime = time;
+         }
+      }
+
+      animationFrameId = requestAnimationFrame(updateLivingStamps);
+    };
+
+    animationFrameId = requestAnimationFrame(updateLivingStamps);
     return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
