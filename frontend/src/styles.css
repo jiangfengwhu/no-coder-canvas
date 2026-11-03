@@ -690,3 +690,31 @@
     opacity: 0;
   }
 }
+
+.blackhole-field {
+  position: absolute;
+  width: 1000px;
+  height: 1000px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blackhole-core {
+  width: 100px;
+  height: 100px;
+  background-color: black;
+  border-radius: 50%;
+  box-shadow: 0 0 50px 20px rgba(100, 0, 255, 0.5);
+  animation: blackhole-pulse 2s infinite alternate;
+}
+
+@keyframes blackhole-pulse {
+  0% { transform: scale(0.9); box-shadow: 0 0 40px 10px rgba(100, 0, 255, 0.5); }
+  100% { transform: scale(1.1); box-shadow: 0 0 60px 30px rgba(150, 0, 255, 0.8); }
+}

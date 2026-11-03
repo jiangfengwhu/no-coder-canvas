@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet } from 'lucide-react';
+import { Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -90,7 +90,7 @@ export function Canvas() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole'>('pan');
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [treasures, setTreasures] = useState<Treasure[]>(generateTreasures);
   const [fossils, setFossils] = useState<Fossil[]>(generateFossils);
@@ -106,6 +106,7 @@ export function Canvas() {
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
 
   const [activeTornadoes, setActiveTornadoes] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [activeBlackholes, setActiveBlackholes] = useState<{ id: string; x: number; y: number }[]>([]);
   const [activeLasers, setActiveLasers] = useState<{ id: string; paths: {x1: number, y1: number, x2: number, y2: number}[]; sparks: {x: number, y: number}[] }[]>([]);
   const [laserAiming, setLaserAiming] = useState<{ startX: number, startY: number, currentX: number, currentY: number } | null>(null);
 
@@ -445,6 +446,7 @@ export function Canvas() {
       if (key === 'd') { setTool('dig'); showToast('已切换至: 挖掘'); }
       if (key === 'l') { setTool('laser'); showToast('已切换至: 激光'); }
       if (key === 'u') { setTool('bubble'); showToast('已切换至: 吹泡泡'); }
+      if (key === 'h') { setTool('blackhole'); showToast('已切换至: 黑洞'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -575,6 +577,11 @@ export function Canvas() {
       const newBubbleId = Math.random().toString(36).slice(2);
       setBubbles(prev => [...prev, { id: newBubbleId, x: worldX, y: worldY, radius: 10, floating: false, phase: Math.random() * Math.PI * 2 }]);
       setDragging(true);
+    } else if (tool === 'blackhole') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+      const blackholeId = Math.random().toString(36).slice(2);
+      setActiveBlackholes(prev => [...prev, { id: blackholeId, x: event.clientX, y: event.clientY }]);
     } else {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -831,6 +838,19 @@ export function Canvas() {
       setActiveTornadoes(prev => prev.map(t => {
         // Find the tornado created by this drag (assuming 1 for simplicity here, or match by some logic)
         return { ...t, x: event.clientX, y: event.clientY }; // Updates all active tornadoes to this pos, but usually there's only 1 active drag
+      }));
+
+    } else if (tool === 'blackhole') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+
+      // Update blackhole position
+      setActiveBlackholes(prev => prev.map(t => {
+        return { ...t, x: event.clientX, y: event.clientY };
       }));
 
     } else if (tool === 'dig') {
@@ -1137,6 +1157,10 @@ export function Canvas() {
       setActiveTornadoes([]);
       drag.current = null;
       setDragging(false);
+    } else if (tool === 'blackhole') {
+      setActiveBlackholes([]);
+      drag.current = null;
+      setDragging(false);
     } else if (tool === 'magnet') {
       drag.current = null;
       setDragging(false);
@@ -1333,6 +1357,101 @@ export function Canvas() {
     return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
+  // Blackhole effect logic (animation loop)
+  useEffect(() => {
+    if (activeBlackholes.length === 0) return;
+
+    let animationFrameId: number;
+    let lastTime = performance.now();
+
+    const updateBlackhole = (time: number) => {
+      const dt = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (dt > 0.1) {
+        animationFrameId = requestAnimationFrame(updateBlackhole);
+        return;
+      }
+
+      const blackholeRadius = 500;
+      const pullForce = 800; // Strong inward pull
+
+      const processEntities = (entities: any[], setEntities: React.Dispatch<React.SetStateAction<any[]>>, isTreasure = false) => {
+        let changed = false;
+        let consumedIds = new Set<string>();
+
+        const newEntities = entities.map(entity => {
+          if (isTreasure && entity.discovered) return entity;
+
+          let entityX = entity.x;
+          let entityY = entity.y;
+
+          for (const bh of activeBlackholes) {
+             const bx = bh.x;
+             const by = bh.y;
+             const exScreen = entityX * view.scale + view.x;
+             const eyScreen = entityY * view.scale + view.y;
+
+             const dx = bx - exScreen;
+             const dy = by - eyScreen;
+             const dist = Math.hypot(dx, dy);
+
+             if (dist > 0 && dist < blackholeRadius) {
+               changed = true;
+
+               if (dist < 20) {
+                 consumedIds.add(entity.id);
+               } else {
+                 const pull = pullForce * dt;
+                 const ratio = Math.min(1, pull / dist);
+
+                 const newExScreen = exScreen + dx * ratio;
+                 const newEyScreen = eyScreen + dy * ratio;
+
+                 entityX = (newExScreen - view.x) / view.scale;
+                 entityY = (newEyScreen - view.y) / view.scale;
+               }
+             }
+          }
+
+          if (entityX !== entity.x || entityY !== entity.y) {
+             return { ...entity, x: entityX, y: entityY };
+          }
+          return entity;
+        });
+
+        if (changed) {
+          const filtered = newEntities.filter((e: any) => !consumedIds.has(e.id));
+          setEntities(filtered as any);
+        }
+      };
+
+      setStamps(prevStamps => {
+          let currentStamps = prevStamps;
+          processEntities(currentStamps, (n) => currentStamps = n as any);
+          return currentStamps;
+      });
+
+      setTreasures(prevTreasures => {
+          let currentTreasures = prevTreasures;
+          processEntities(currentTreasures, (n) => currentTreasures = n as any, true);
+          return currentTreasures;
+      });
+
+      setBubbles(prevBubbles => {
+          let currentBubbles = prevBubbles;
+          processEntities(currentBubbles, (n) => currentBubbles = n as any);
+          return currentBubbles;
+      });
+
+      animationFrameId = requestAnimationFrame(updateBlackhole);
+    };
+
+    animationFrameId = requestAnimationFrame(updateBlackhole);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [activeBlackholes, view]);
+
   // Tornado effect logic (animation loop)
   useEffect(() => {
     if (activeTornadoes.length === 0) return;
@@ -1500,6 +1619,16 @@ export function Canvas() {
         <div className="tornado-swirl reverse" />
       </div>
     ))}
+    {tool === 'blackhole' && dragging && drag.current && activeBlackholes.map(t => (
+      <div
+        key={t.id}
+        className="blackhole-field"
+        style={{ left: t.x, top: t.y }}
+        aria-hidden="true"
+      >
+        <div className="blackhole-core" />
+      </div>
+    ))}
     {tool === 'magnet' && drag.current && dragging && (
       <div
         className={`magnet-field ${isRepelling ? 'repel' : ''}`}
@@ -1662,6 +1791,7 @@ export function Canvas() {
       <Button variant={tool === 'pen' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="画笔" onClick={() => { setTool('pen'); showToast('已切换至: 画笔'); }}><Pen /></Button>
       <Button variant={tool === 'magic' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="魔法棒" onClick={() => { setTool('magic'); showToast('已切换至: 魔法棒'); }}><Wand2 /></Button>
       <Button variant={tool === 'bubble' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="吹泡泡" onClick={() => { setTool('bubble'); showToast('已切换至: 吹泡泡'); }}><Droplet /></Button>
+      <Button variant={tool === 'blackhole' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="黑洞" onClick={() => { setTool('blackhole'); showToast('已切换至: 黑洞'); }}><CircleDotDashed /></Button>
       <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => { setTool('scan'); showToast('已切换至: 扫描仪'); }}><Search /></Button>
       <Button variant={tool === 'sonar' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="声纳探测" onClick={() => { setTool('sonar'); showToast('已切换至: 声纳探测'); }}><Radar /></Button>
       <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }}><Smile /></Button>
