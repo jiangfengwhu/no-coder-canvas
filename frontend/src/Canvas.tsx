@@ -29,7 +29,7 @@ type View = { x: number; y: number; scale: number };
 const initial: View = { x: 0, y: 0, scale: 1 };
 const clamp = (n: number) => Math.max(.35, Math.min(2.5, n));
 
-const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋', '💧', '🌱', '🧊', '🎈', '💣', '☁️', '🌽', '🥚', '🛸', '🐌', '🐝', '🕊️', '🦇'];
+const EMOJIS = ['❤️', '⭐', '✨', '🔥', '🎉', '💡', '🌈', '🍕', '🚀', '🌺', '🍀', '🐾', '🦋', '💧', '🌱', '🧊', '🎈', '💣', '☁️', '🌽', '🥚', '🛸', '🐌', '🐝', '🕊️', '🦇', '🎁', '🎩'];
 const TREASURE_EMOJIS = ['💎', '👑', '🎁', '🏆', '🔮', '💰', '🗝️'];
 const FOSSIL_EMOJIS = ['🦴', '💎', '🦖', '🏺', '🪙', '🗿'];
 const STROKE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
@@ -42,7 +42,9 @@ const ALCHEMY_PAIRS: [string, string, string][] = [
   ['🦋', '🌺', '🧚'],
   ['🐾', '🍕', '💩'],
   ['💧', '🌈', '🦄'],
-  ['✨', '🎉', '🎊']
+  ['✨', '🎉', '🎊'],
+  ['💧', '🌱', '🌿'],
+  ['🔥', '🌽', '🍿']
 ];
 const ALCHEMY_RECIPES = Object.fromEntries(
   ALCHEMY_PAIRS.map(([a, b, result]) => [[a, b].sort().join('+'), result])
@@ -74,6 +76,11 @@ const getProximityTooltip = (obj: { type: string; emoji?: string }) => {
       if (e === '🎈') return '点击戳破气球';
       if (e === '☁️') return '点击下雨';
       if (e === '🥚') return '点击孵化';
+      if (e === '🐣') return '点击喂食';
+      if (e === '🐥') return '点击长大';
+      if (e === '🐔') return '点击下蛋';
+      if (e === '🎁') return '点击拆礼物';
+      if (e === '🎩') return '点击变魔术';
       if (['💣', '🧨'].includes(e || '')) return '点击引爆';
       if (['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦋', '🐢', '🐈', '🐕', '🐾'].includes(e || '')) return '点击抚摸';
       if (e === '🌱') return '点击生长';
@@ -2218,10 +2225,49 @@ export function Canvas() {
            newDrops.push({ id: Math.random().toString(36).slice(2), x: worldX + (Math.random() - 0.5) * 40, y: worldY + 20 + Math.random() * 20, emoji: '💧' });
         }
         setStamps(prev => [...prev, ...newDrops]);
-      } else if (e === '🥚') {
+            } else if (e === '🥚') {
         playStampPop();
         setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🐣' } : s));
         spawnParticles(['#fde047', '#fef08a'], 10, 40);
+      } else if (e === '🐣') {
+        playMagicSparkle();
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🐥' } : s));
+        spawnParticles(['#facc15', '#fef08a'], 12, 50);
+        showToast('小鸡长大了一点！');
+      } else if (e === '🐥') {
+        playMagicSparkle();
+        setStamps(prev => prev.map(s => s.id === nearestStamp.id ? { ...s, emoji: '🐔' } : s));
+        spawnParticles(['#ef4444', '#facc15'], 15, 60);
+        showToast('长成大公鸡了！');
+      } else if (e === '🐔') {
+        playBounce(300);
+        const newEggId = Math.random().toString(36).slice(2);
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 30 + Math.random() * 30;
+        setStamps(prev => [...prev, { id: newEggId, x: worldX + Math.cos(angle) * dist, y: worldY + Math.sin(angle) * dist, emoji: '🥚' }]);
+        spawnParticles(['#ffffff', '#f1f5f9'], 10, 40);
+        showToast('下了一个蛋！');
+      } else if (e === '🎁') {
+        playTreasureFound();
+        setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+        const SWEETS = ['🍬', '🍭', '🍫', '🧸', '🎈'];
+        const newSweets: {id: string, x: number, y: number, emoji: string}[] = [];
+        for(let i=0; i<3; i++) {
+           const angle = Math.random() * Math.PI * 2;
+           const dist = 30 + Math.random() * 50;
+           newSweets.push({ id: Math.random().toString(36).slice(2), x: worldX + Math.cos(angle) * dist, y: worldY + Math.sin(angle) * dist, emoji: SWEETS[Math.floor(Math.random() * SWEETS.length)] });
+        }
+        setStamps(prev => [...prev, ...newSweets]);
+        spawnParticles(['#ec4899', '#f43f5e', '#facc15', '#3b82f6'], 25, 100);
+        showToast('拆开礼物了！🎁');
+      } else if (e === '🎩') {
+        playMagicSparkle();
+        setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
+        const MAGICS = ['🐰', '🕊️', '✨'];
+        const magicItem = MAGICS[Math.floor(Math.random() * MAGICS.length)];
+        setStamps(prev => [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY - 20, emoji: magicItem }]);
+        spawnParticles(['#a855f7', '#d946ef', '#f43f5e'], 20, 80);
+        showToast('变出了 ' + magicItem + '！🎩');
       } else if (BOMBS.includes(e)) {
         playStampPop();
         setStamps(prev => prev.filter(s => s.id !== nearestStamp.id));
@@ -2523,6 +2569,9 @@ export function Canvas() {
 
          if (emoji === '🎈' || emoji === '☁️') {
             newY -= 20 * dt;
+            moved = true;
+         } else if (emoji === '💧' || emoji === '❄️') {
+            newY += 30 * dt;
             moved = true;
          } else if (emoji === '🦋' || emoji === '🐝') {
             newX += (Math.random() - 0.5) * 50 * dt;
