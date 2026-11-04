@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Footprints, Aperture, Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind } from 'lucide-react';
+import { Footprints, Aperture, Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind, WandSparkles } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -10,6 +10,7 @@ import { FruitNinja } from '@/components/FruitNinja';
 import { CanvasSnake } from '@/components/CanvasSnake';
 import { SpaceShooter } from '@/components/SpaceShooter';
 import { WildlifeTracker } from '@/components/WildlifeTracker';
+import { SparklerTool } from '@/components/SparklerTool';
 import { StrokeJumper } from '@/components/StrokeJumper';
 import { Fireworks } from '@/components/Fireworks';
 import { WhackAMole } from '@/components/WhackAMole';
@@ -227,7 +228,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker' | 'sparkler'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
 
@@ -786,6 +787,7 @@ export function Canvas() {
       if (key === 'z') { setTool('wind'); showToast('已切换至: 吹风'); }
       if (key === '\\') { setTool('portal'); showToast('已切换至: 传送门'); }
       if (key === ']') { setTool('tracker'); showToast('已切换至: 追踪动物'); }
+      if (key === '-') { setTool('sparkler'); showToast('已切换至: 星火棒'); }
 
       // Viewport Pan
       const panStep = 50;
@@ -934,6 +936,9 @@ export function Canvas() {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
       playStampPop();
+    } else if (tool === 'sparkler') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
     } else if (tool === 'dig') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
@@ -1408,6 +1413,12 @@ export function Canvas() {
         drag.current.isDrag = true;
       }
       drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+    } else if (tool === 'sparkler') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
+        drag.current.isDrag = true;
+      }
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
     } else if (tool === 'laser') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       if (!drag.current.isDrag && (Math.abs(event.clientX - drag.current.startX) > 3 || Math.abs(event.clientY - drag.current.startY) > 3)) {
@@ -1865,6 +1876,9 @@ export function Canvas() {
       drag.current = null;
       setDragging(false);
     } else if (tool === 'dig') {
+      drag.current = null;
+      setDragging(false);
+    } else if (tool === 'sparkler') {
       drag.current = null;
       setDragging(false);
     } else if (tool === 'confetti') {
@@ -3222,6 +3236,7 @@ export function Canvas() {
         <WildlifeTracker view={view} onDiscover={handleAnimalDiscover} />
         {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
         {musicBoxActive && <MusicBox strokes={strokes} view={view} stamps={stamps} />}
+        {tool === 'sparkler' && <SparklerTool view={view} dragRef={drag} strokes={strokes} />}
         {tool === 'golf' && <MiniGolf strokes={strokes} view={view} shootSequence={shootSequence} shootVector={shootVector} />}
       </div>
       {tool === 'ninja' && <FruitNinja view={view} dragRef={drag} />}
@@ -3277,6 +3292,7 @@ export function Canvas() {
       <Button variant={tool === 'tornado' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="龙卷风" onClick={() => { setTool('tornado'); showToast('已切换至: 龙卷风'); }}><Tornado /></Button>
       <Button variant={tool === 'dig' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="挖掘" onClick={() => { setTool('dig'); showToast('已切换至: 挖掘'); }}><Pickaxe /></Button>
       <Button variant={tool === 'laser' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="激光" onClick={() => { setTool('laser'); showToast('已切换至: 激光'); }}><Zap /></Button>
+      <Button variant={tool === 'sparkler' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="星火棒" onClick={() => { setTool('sparkler'); showToast('已切换至: 星火棒'); }}><WandSparkles /></Button>
       <Button variant={tool === 'shooter' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="星际保卫战" onClick={() => { setTool('shooter'); showToast('已切换至: 星际保卫战'); }}><Rocket /></Button>
       <Button variant={tool === 'fish' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="钓鱼" onClick={() => { setTool('fish'); showToast('已切换至: 钓鱼'); }}><Fish /></Button>
       <Button variant={tool === 'map' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="藏宝图" onClick={() => { setTool('map'); showToast('已切换至: 藏宝图'); }}><Map /></Button>
