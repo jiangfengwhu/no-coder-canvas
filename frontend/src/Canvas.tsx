@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Bug, ShoppingBasket, Footprints, Aperture, Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind, WandSparkles } from 'lucide-react';
+import { Ghost as GhostIcon, Bug, ShoppingBasket, Footprints, Aperture, Minus, Plus, LocateFixed, Eraser, Navigation, Sparkles, Pen, Hand, Wand2, Search, Smile, Flag, Music, Radar, Magnet, Swords, PartyPopper, Snowflake, Gamepad2, Tornado, Pickaxe, Zap, Rocket, Droplet, CircleDotDashed, Fish, Leaf, Captions, ChevronsUp, Star, Map, Send, Hammer, Dices, Flashlight, SprayCan, CarFront, Target, Orbit, Wind, WandSparkles } from 'lucide-react';
 import Oneko from 'react-cursor-cat';
 import { ParrotApp } from '@/components/ParrotApp';
 import { BouncyBall } from '@/components/BouncyBall';
@@ -319,7 +319,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker' | 'sparkler' | 'catch' | 'bug-catcher'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker' | 'sparkler' | 'catch' | 'bug-catcher' | 'ghost-buster'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
 
@@ -403,6 +403,7 @@ export function Canvas() {
   const viewRef = useRef<View>(initial);
   const bubblesRef = useRef<Bubble[]>([]);
   const stampsRef = useRef<{ id: string; x: number; y: number; emoji: string; vx?: number; vy?: number; lastTeleport?: number }[]>([]);
+  const ghostsRef = useRef<Ghost[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const treasuresRef = useRef<Treasure[]>([]);
 
@@ -417,6 +418,10 @@ export function Canvas() {
   useEffect(() => {
     bubblesRef.current = bubbles;
   }, [bubbles]);
+
+  useEffect(() => {
+    ghostsRef.current = ghosts;
+  }, [ghosts]);
 
   useEffect(() => {
     if (tool !== 'dice') setDiceTargets([]);
@@ -882,6 +887,7 @@ export function Canvas() {
       if (key === '\\') { setTool('portal'); showToast('已切换至: 传送门'); }
       if (key === '1') { setTool('catch'); showToast('已切换至: 接宝物'); }
       if (key === '2') { setTool('bug-catcher'); showToast('已切换至: 捕虫网'); }
+      if (key === '3') { setTool('ghost-buster'); showToast('已切换至: 抓鬼大师'); }
       if (key === ']') { setTool('tracker'); showToast('已切换至: 追踪动物'); }
       if (key === '-') { setTool('sparkler'); showToast('已切换至: 星火棒'); }
 
@@ -1095,6 +1101,10 @@ export function Canvas() {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
       catchBugsAt(event.clientX, event.clientY);
+    } else if (tool === 'ghost-buster') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      setDragging(true);
+      catchGhostsAt(event.clientX, event.clientY);
     } else if (tool === 'bubble') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       const worldX = (event.clientX - view.x) / view.scale;
@@ -1603,6 +1613,10 @@ export function Canvas() {
       if (!drag.current || drag.current.id !== event.pointerId) return;
       drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
       catchBugsAt(event.clientX, event.clientY);
+    } else if (tool === 'ghost-buster') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+      drag.current = { ...drag.current, x: event.clientX, y: event.clientY };
+      catchGhostsAt(event.clientX, event.clientY);
     } else if (tool === 'bubble') {
       if (!drag.current || drag.current.id !== event.pointerId) return;
 
@@ -2159,6 +2173,49 @@ export function Canvas() {
     }
   }
 
+
+
+  const catchGhostsAt = (clientX: number, clientY: number) => {
+    const worldX = (clientX - viewRef.current.x) / viewRef.current.scale;
+    const worldY = (clientY - viewRef.current.y) / viewRef.current.scale;
+
+    const currentGhosts = ghostsRef.current;
+    const caught = currentGhosts.filter(g => !g.caught && Math.hypot(g.x - worldX, g.y - worldY) < 50);
+
+    if (caught.length > 0) {
+      setGhosts(prev => {
+        const next = [...prev];
+        caught.forEach(c => {
+          const index = next.findIndex(g => g.id === c.id);
+          if (index !== -1) {
+            next[index] = { ...next[index], caught: true };
+          }
+        });
+        return next;
+      });
+
+      caught.forEach(g => {
+        showToast(`抓到了一个 ${g.emoji}`);
+        playTreasureFound();
+
+        // Particles
+        const newParticles: Particle[] = [];
+        for (let i = 0; i < 15; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 50 + Math.random() * 100;
+          newParticles.push({
+            id: Math.random().toString(36).slice(2),
+            x: g.x, y: g.y, color: '#a855f7',
+            tx: `${Math.cos(angle) * speed}px`, ty: `${Math.sin(angle) * speed}px`
+          });
+        }
+        setParticles(prev => [...prev.slice(-100), ...newParticles]);
+        setTimeout(() => {
+          setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+        }, 800);
+      });
+    }
+  };
 
   const catchBugsAt = (clientX: number, clientY: number) => {
     const worldX = (clientX - viewRef.current.x) / viewRef.current.scale;
@@ -3558,6 +3615,7 @@ export function Canvas() {
       <Button variant={tool === 'flashlight' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="手电筒" onClick={() => { setTool('flashlight'); showToast('已切换至: 手电筒'); }}><Flashlight /></Button>
       <Button variant={tool === 'catch' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="接宝物" onClick={() => { setTool('catch'); showToast('已切换至: 接宝物'); }}><ShoppingBasket /></Button>
       <Button variant={tool === 'bug-catcher' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="捕虫网" onClick={() => { setTool('bug-catcher'); showToast('已切换至: 捕虫网'); }}><Bug /></Button>
+      <Button variant={tool === 'ghost-buster' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="抓鬼大师" onClick={() => { setTool('ghost-buster'); showToast('已切换至: 抓鬼大师'); }}><GhostIcon /></Button>
       <Button variant={tool === 'ufo' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="UFO牵引" onClick={() => { setTool('ufo'); showToast('已切换至: UFO牵引'); }}><Orbit /></Button>
       <Button variant={tool === 'jumper' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="跳跳乐" onClick={() => { setTool('jumper'); showToast('已切换至: 跳跳乐'); }}><ChevronsUp /></Button>
       <Button variant={tool === 'firework' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="烟花" onClick={() => { setTool('firework'); showToast('已切换至: 烟花'); }}><Star /></Button>
