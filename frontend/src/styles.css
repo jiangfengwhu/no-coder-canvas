@@ -1039,3 +1039,67 @@
     box-shadow: 0 0 30px var(--portal-color), inset 0 0 30px var(--portal-color);
   }
 }
+
+/* Proximity Feedback Styles */
+.proximity-tether {
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+  animation: proximity-tether-dash 0.5s linear infinite;
+}
+
+@keyframes proximity-tether-dash {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+
+.proximity-highlight-ring {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border: 2px dashed var(--primary);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: proximity-spin 4s linear infinite;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+}
+
+@keyframes proximity-spin {
+  0% {
+    transform: translate(-50%, -50%) scale(var(--ring-scale, 1)) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(var(--ring-scale, 1)) rotate(360deg);
+  }
+}
+
+.proximity-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: proximity-tooltip-fade 0.2s ease-out forwards;
+}
+
+@keyframes proximity-tooltip-fade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -90%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
