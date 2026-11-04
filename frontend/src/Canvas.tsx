@@ -63,6 +63,32 @@ type FishingPond = { id: string; x: number; y: number; active: boolean };
 type PaperPlane = { id: string; x: number; y: number; vx: number; vy: number; life: number; angle: number };
 type AnimalTrail = { id: string; x: number; y: number; emoji: string; revealed: boolean; isEnd: boolean; angle: number; };
 
+const getProximityTooltip = (obj: { type: string; emoji?: string }) => {
+    if (obj.type === 'treasure') return '点击挖掘宝藏';
+    if (obj.type === 'fossil') return '点击挖掘化石';
+    if (obj.type === 'ghost') return '点击捕捉幽灵';
+
+    if (obj.type === 'stamp') {
+      const e = obj.emoji;
+      if (e === '🎈') return '点击戳破气球';
+      if (e === '☁️') return '点击下雨';
+      if (e === '🥚') return '点击孵化';
+      if (['💣', '🧨'].includes(e || '')) return '点击引爆';
+      if (['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦋', '🐢', '🐈', '🐕', '🐾'].includes(e || '')) return '点击抚摸';
+      if (e === '🌱') return '点击生长';
+      if (e === '🌿') return '点击长成树';
+      if (e === '🌳') return '点击结出果实';
+      if (e === '💡') return '点击关灯';
+      if (e === '🌑') return '点击开灯';
+      if (e === '📜') return '点击打开藏宝图';
+      if (e === '🧰') return '点击开启宝藏';
+      if (['🎵', '🎶', '🎸', '🎹', '🎷', '🎺', '🎻', '🥁'].includes(e || '')) return '点击播放音乐';
+      if (['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'].includes(e || '')) return '点击踢球';
+      return '点击消除印章';
+    }
+    return '互动';
+};
+
 const FISH_EMOJIS = ['🐟', '🐠', '🐡', '🐙', '🦑', '🦐', '🦞', '🦀', '🦈', '🐬', '🐳', '🐢'];
 
 function generateTrails(): AnimalTrail[] {
@@ -168,6 +194,63 @@ function generateGhosts(): Ghost[] {
 }
 
 // Application features belong inside this workspace; the control shell is separate.
+function ProximityOverlay() {
+  const [data, setData] = useState<{ nearestObj: any, pointerX: number, pointerY: number, view: any } | null>(null);
+  useEffect(() => {
+    let frame: number;
+    const handleProximity = (e: Event) => {
+      const ce = e as CustomEvent;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+         if (ce.detail.nearestObj) {
+            setData(ce.detail);
+         } else {
+            setData(null);
+         }
+      });
+    };
+    window.addEventListener('app-proximity', handleProximity);
+    return () => {
+      window.removeEventListener('app-proximity', handleProximity);
+      cancelAnimationFrame(frame);
+    }
+  }, []);
+
+  if (!data) return null;
+  const { nearestObj, pointerX, pointerY, view } = data;
+
+  return (
+    <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 60 }} aria-hidden="true">
+      <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible' }}>
+        <line
+          x1={pointerX}
+          y1={pointerY}
+          x2={nearestObj.x * view.scale + view.x}
+          y2={nearestObj.y * view.scale + view.y}
+          className="proximity-tether"
+        />
+      </svg>
+      <div
+        className="proximity-highlight-ring"
+        style={{
+          left: nearestObj.x * view.scale + view.x,
+          top: nearestObj.y * view.scale + view.y,
+          '--ring-scale': Math.max(1, view.scale)
+        } as React.CSSProperties}
+      />
+      <div
+        className="proximity-tooltip"
+        style={{
+          left: nearestObj.x * view.scale + view.x,
+          top: nearestObj.y * view.scale + view.y - (30 * view.scale),
+        }}
+      >
+        {getProximityTooltip(nearestObj)}
+      </div>
+    </div>
+  );
+}
+
 export function Canvas() {
 
   function renderSprayCanDots(stroke: Stroke) {
@@ -231,6 +314,9 @@ export function Canvas() {
   const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker' | 'sparkler'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+
+  // Proximity feedback state
+
 
   const [portals, setPortals] = useState<{id: string, x: number, y: number, color: string}[]>([]);
   const portalsRef = useRef<{id: string, x: number, y: number, color: string}[]>([]);
@@ -1056,6 +1142,9 @@ export function Canvas() {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
       setDragging(true);
     }
+
+    // Clear proximity on interaction
+    window.dispatchEvent(new CustomEvent('app-proximity', { detail: { nearestObj: null } }));
   }
   function move(event: PointerEvent<HTMLDivElement>) {
     const currentWorldX = (event.clientX - view.x) / view.scale;
@@ -1122,6 +1211,65 @@ export function Canvas() {
       }
     }
     lastHoverPos.current = { x: currentWorldX, y: currentWorldY };
+
+    // Proximity logic
+    let nearestObj: { id: string; type: 'treasure' | 'stamp' | 'fossil' | 'ghost'; x: number; y: number; distance: number; emoji?: string } | null = null;
+    let minHoverDist = 200; // Activation distance in pixels (screen space)
+
+    // Convert currentWorld to Screen to check distance in screen space
+    const screenX = currentWorldX * view.scale + view.x;
+    const screenY = currentWorldY * view.scale + view.y;
+
+
+    if (!dragging) {
+       for (const t of treasures) {
+         if (!t.discovered) {
+           const tsx = t.x * view.scale + view.x;
+           const tsy = t.y * view.scale + view.y;
+           const dist = Math.hypot(tsx - screenX, tsy - screenY);
+           if (dist < minHoverDist) {
+             minHoverDist = dist;
+             nearestObj = { id: t.id, type: 'treasure', x: t.x, y: t.y, distance: dist, emoji: t.emoji };
+           }
+         }
+       }
+       for (const s of stamps) {
+         const ssx = s.x * view.scale + view.x;
+         const ssy = s.y * view.scale + view.y;
+         const dist = Math.hypot(ssx - screenX, ssy - screenY);
+         if (dist < minHoverDist) {
+           minHoverDist = dist;
+           nearestObj = { id: s.id, type: 'stamp', x: s.x, y: s.y, distance: dist, emoji: s.emoji };
+         }
+       }
+       if (tool === 'dig') {
+           for (const f of fossils) {
+               if (f.hp > 0) {
+                   const fsx = f.x * view.scale + view.x;
+                   const fsy = f.y * view.scale + view.y;
+                   const dist = Math.hypot(fsx - screenX, fsy - screenY);
+                   if (dist < minHoverDist) {
+                       minHoverDist = dist;
+                       nearestObj = { id: f.id, type: 'fossil', x: f.x, y: f.y, distance: dist, emoji: f.emoji };
+                   }
+               }
+           }
+       }
+       if (tool === 'flashlight') {
+           for (const g of ghosts) {
+               if (!g.caught) {
+                   const gsx = g.x * view.scale + view.x;
+                   const gsy = g.y * view.scale + view.y;
+                   const dist = Math.hypot(gsx - screenX, gsy - screenY);
+                   if (dist < minHoverDist) {
+                       minHoverDist = dist;
+                       nearestObj = { id: g.id, type: 'ghost', x: g.x, y: g.y, distance: dist, emoji: g.emoji };
+                   }
+               }
+           }
+       }
+    }
+    window.dispatchEvent(new CustomEvent('app-proximity', { detail: { nearestObj, pointerX: screenX, pointerY: screenY, view } }));
 
     if (tool === 'snake' || tool === 'shooter' || tool === 'drive') {
        if (pointerWorldPosRef) {
@@ -1579,6 +1727,9 @@ export function Canvas() {
   }
   function end(event: PointerEvent<HTMLDivElement>) {
     if (isScanning) setIsScanning(false);
+
+    // Clear proximity on end
+    window.dispatchEvent(new CustomEvent('app-proximity', { detail: { nearestObj: null } }));
 
     if (tool === 'pen' || tool === 'vine' || tool === 'spray') {
       if (currentStroke) {
@@ -2936,6 +3087,9 @@ export function Canvas() {
     setFlashlightPos({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   }, []);
 
+
+
+
   const viewportCenterX = (innerWidth / 2 - view.x) / view.scale;
   const viewportCenterY = (innerHeight / 2 - view.y) / view.scale;
 
@@ -3233,6 +3387,7 @@ export function Canvas() {
             <Send size={32} color="#9ca3af" fill="#e5e7eb" />
           </div>
         ))}
+        <ProximityOverlay />
         <WildlifeTracker view={view} onDiscover={handleAnimalDiscover} />
         {ballActive && <BouncyBall strokes={strokes} view={view} stamps={stamps} onStampHit={(id, x, y) => popStamp(x, y, id)} />}
         {musicBoxActive && <MusicBox strokes={strokes} view={view} stamps={stamps} />}
@@ -3263,6 +3418,8 @@ export function Canvas() {
           />
         </svg>
       )}
+
+
     </div>
     <div className="canvas-controls" aria-label="画板视图控制">
       {undiscoveredCount > 0 && (
