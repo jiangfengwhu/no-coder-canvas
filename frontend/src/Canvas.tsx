@@ -98,6 +98,7 @@ const getProximityTooltip = (obj: { type: string; emoji?: string }) => {
 };
 
 const FISH_EMOJIS = ['🐟', '🐠', '🐡', '🐙', '🦑', '🦐', '🦞', '🦀', '🦈', '🐬', '🐳', '🐢'];
+const MUSIC_EMOJIS = ['🎵', '🎶', '🎸', '🎹', '🎷', '🎺', '🎻', '🥁'];
 
 function generateTrails(): AnimalTrail[] {
   const trails: AnimalTrail[] = [];
@@ -319,7 +320,7 @@ export function Canvas() {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number; color?: string }[]>([]);
   const [fireworkTargets, setFireworkTargets] = useState<{id: string, x: number, y: number, color: string}[]>([]);
-  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker' | 'sparkler' | 'catch' | 'bug-catcher' | 'ghost-buster'>('pan');
+  const [tool, setTool] = useState<'pan' | 'pen' | 'magic' | 'scan' | 'stamp-brush' | 'golf' | 'sonar' | 'magnet' | 'ninja' | 'confetti' | 'kaleidoscope' | 'snake' | 'tornado' | 'dig' | 'laser' | 'shooter' | 'bubble' | 'blackhole' | 'fish' | 'vine' | 'jumper' | 'firework' | 'map' | 'plane' | 'whack' | 'dice' | 'flashlight' | 'spray' | 'drive' | 'slingshot' | 'ufo' | 'wind' | 'portal' | 'tracker' | 'sparkler' | 'catch' | 'bug-catcher' | 'ghost-buster' | 'music-brush'>('pan');
   const [diceTargets, setDiceTargets] = useState<{id: string, x: number, y: number}[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
 
@@ -863,6 +864,7 @@ export function Canvas() {
       if (key === 'm') { setTool('magic'); showToast('已切换至: 魔法棒'); }
       if (key === 's') { setTool('scan'); showToast('已切换至: 扫描仪'); }
       if (key === 'e') { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }
+      if (key === '4') { setTool('music-brush'); showToast('已切换至: 音乐刷'); }
       if (key === 'g') { setTool('golf'); showToast('已切换至: 高尔夫'); }
       if (key === 'f') { setTool('fish'); showToast('已切换至: 钓鱼'); }
       if (key === 'r') { setTool('sonar'); showToast('已切换至: 声纳探测'); }
@@ -1013,6 +1015,18 @@ export function Canvas() {
         return next;
       });
       playStampPlace();
+    } else if (tool === 'music-brush') {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
+      const worldX = (event.clientX - view.x) / view.scale;
+      const worldY = (event.clientY - view.y) / view.scale;
+      const emoji = MUSIC_EMOJIS[Math.floor(Math.random() * MUSIC_EMOJIS.length)];
+      setStamps(prev => {
+        const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
+        if (next.length > 200) return next.slice(next.length - 200);
+        return next;
+      });
+      playBounce(300);
+
       setDragging(true);
     } else if (tool === 'golf') {
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, isDrag: false };
@@ -1367,6 +1381,27 @@ export function Canvas() {
         });
         playStampPlace();
 
+        drag.current = { ...drag.current, x: event.clientX, y: event.clientY, isDrag: true };
+      }
+    } else if (tool === 'music-brush') {
+      if (!drag.current || drag.current.id !== event.pointerId) return;
+
+      const dx = event.clientX - drag.current.x;
+      const dy = event.clientY - drag.current.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 40) {
+        const worldX = (event.clientX - view.x) / view.scale;
+        const worldY = (event.clientY - view.y) / view.scale;
+        const emoji = MUSIC_EMOJIS[Math.floor(Math.random() * MUSIC_EMOJIS.length)];
+
+        setStamps(prev => {
+          const next = [...prev, { id: Math.random().toString(36).slice(2), x: worldX, y: worldY, emoji }];
+          if (next.length > 200) return next.slice(next.length - 200);
+          return next;
+        });
+
+        playBounce(300);
         drag.current = { ...drag.current, x: event.clientX, y: event.clientY, isDrag: true };
       }
     } else if (tool === 'golf') {
@@ -2297,7 +2332,6 @@ export function Canvas() {
       const worldY = nearestStamp.y;
 
       const ANIMALS = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦋', '🐢', '🐈', '🐕', '🐾'];
-      const MUSIC = ['🎵', '🎶', '🎸', '🎹', '🎷', '🎺', '🎻', '🥁'];
       const BALLS = ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'];
       const BOMBS = ['💣', '🧨'];
 
@@ -2455,7 +2489,7 @@ export function Canvas() {
           });
         }
         setStamps(prev => [...prev, ...newRewards]);
-      } else if (MUSIC.includes(e)) {
+      } else if (MUSIC_EMOJIS.includes(e)) {
         playBounce(300);
         spawnParticles(['#a855f7', '#d946ef', '#ec4899'], 8, 60);
       } else if (BALLS.includes(e)) {
@@ -3594,6 +3628,7 @@ export function Canvas() {
       <Button variant={tool === 'scan' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="扫描仪" onClick={() => { setTool('scan'); showToast('已切换至: 扫描仪'); }}><Search /></Button>
       <Button variant={tool === 'sonar' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="声纳探测" onClick={() => { setTool('sonar'); showToast('已切换至: 声纳探测'); }}><Radar /></Button>
       <Button variant={tool === 'stamp-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="印章刷" onClick={() => { setTool('stamp-brush'); showToast('已切换至: 印章刷'); }}><Smile /></Button>
+      <Button variant={tool === 'music-brush' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="音乐刷" onClick={() => { setTool('music-brush'); showToast('已切换至: 音乐刷'); }}><Music /></Button>
       <Button variant={tool === 'golf' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="高尔夫" onClick={() => { setTool('golf'); showToast('已切换至: 高尔夫'); }}><Flag /></Button>
       <Button variant={tool === 'magnet' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="磁铁" onClick={() => { setTool('magnet'); showToast('已切换至: 磁铁'); }}><Magnet /></Button>
       <Button variant={tool === 'ninja' ? 'secondary' : 'ghost'} size="icon-sm" aria-label="切水果" onClick={() => { setTool('ninja'); showToast('已切换至: 切水果'); }}><Swords /></Button>
